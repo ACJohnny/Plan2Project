@@ -1,0 +1,219 @@
+Six Point Markup — Web App Requirements
+Nov 7, 2026 · @Harold
+Overview
+Build a self-hosted web app, running in Docker, where Six Point Technology staff upload building plans and mark up AV and low-voltage device locations on each floor. It replaces the single-project artifact prototype (Harless Residence) with a multi-project, multi-user app. Build it from scratch; the prototype is a reference for behavior and look, not code to reuse.
+Users: Six Point staff (project designers, techs, office) on desktop, tablet and phone. Customers may later get read-only links (Phase 2).
+Carries over from the prototype unchanged: the device palette and color categories, place/drag/pan/zoom interactions, the marker editor, the per-floor device schedule, Copy device list, and the 11x17 print PDF.
+New in the web app: projects list, uploading plans in the browser (with PDF-to-PNG conversion on the server), user accounts and roles, a real database, live updates between users, CSV export, and an editable device library.
+Requirement IDs (R-1, R-2…) are for tracking in commits and tests. Must items are v1. Phase 2 items are listed so the data model leaves room for them; don't build them yet.
+Tech stack and deployment
+The app runs in two containers started by one docker compose up: the app (UI, API, PDF conversion) and PostgreSQL.
+Plan files live on a mounted volume, never in the database or the image.
+• R-1 Stack. TypeScript throughout. Backend: Node 20 LTS with Fastify. Frontend: React 18 + Vite, served by the backend as static files. Database: PostgreSQL 16 with Drizzle ORM and checked-in migrations. Image handling: sharp. PDF export: pdf-lib on the server.
+• R-2 Compose. Ship Dockerfile (multi-stage, node:20-bookworm-slim, runs as a non-root user) and docker-compose.yml with services app and db. The app image installs poppler-utils for pdftoppm. The app listens on port 8080.
+• R-3 Config. All settings come from environment variables, with a .env.example listing every one.
+• R-4 Storage. Named volumes: appdata mounted at /data (uploads, rendered sheets, thumbnails) and pgdata for Postgres.
+• R-5 Startup. The app runs pending migrations and seeds the device library on boot, then creates the first admin from ADMIN_EMAIL / ADMIN_PASSWORD if no users exist.
+• R-6 Health. GET /healthz returns 200 when the database answers; the Dockerfile declares a HEALTHCHECK on it.
+• R-7 HTTPS. TLS is terminated by a reverse proxy in front (Caddy, Traefik or nginx). The app trusts X-Forwarded-* headers and sets secure cookies when APP_URL starts with https.
+• R-8 Backups. Include scripts/backup.sh (pg_dump + tar of /data into a dated folder) and scripts/restore.sh, documented in the README.
+• R-9 Logs. JSON logs to stdout; no log files inside the container.
+Variable
+Default
+Purpose
+DATABASE_URL
+none
+Postgres connection string
+SESSION_SECRET
+none
+Signs session cookies; app refuses to start without it
+APP_URL
+http://localhost:8080
+Public URL, used for links and cookie flags
+ADMIN_EMAIL, ADMIN_PASSWORD
+none
+First admin account, used only when no users exist
+UPLOAD_MAX_MB
+100
+Largest plan upload accepted
+PDF_RENDER_DPI
+150
+Resolution for PDF pages converted to PNG
+PORT
+8080
+HTTP port inside the container
+Accounts and access
+Everyone signs in with email and password. There are three roles, and access is company-wide; there are no per-project permissions in v1.
+Role
+Can
+Admin
+Everything Editor can, plus manage users, edit the device library, delete projects
+Editor
+Create and edit projects, upload sheets, place and edit markers, export
+Viewer
+Open projects, view the schedule, copy the list, export PDF and CSV; no edits
+• R-10 Sign-in. Email + password. Hash passwords with argon2id. Sessions are httpOnly, SameSite=Lax cookies stored server-side in Postgres, lasting 30 days with sliding renewal.
+• R-11 Users. Admins add users (name, email, role, temporary password), change roles, reset passwords and deactivate users. There's no public sign-up.
+• R-12 Own account. Every user can change their own name and password.
+• R-13 Enforcement. Every API route checks the role on the server. The UI also hides controls the role can't use (a Viewer gets no palette and no Delete).
+• R-14 Rate limits. Lock sign-in for 15 minutes after 10 failed attempts per email or IP. Protect state-changing requests against CSRF (a double-submit token or an Origin check).
+• Phase 2: read-only customer share links per project (a tokenized URL that shows the plan and schedule with no sign-in), and Google Workspace sign-in.
+Projects and sheets
+A project is one job site with an ordered list of floors, and each floor is one plan sheet image. This replaces the hard-coded PROJECT and FLOORS config in the prototype.
+• R-15 Projects list. The home page lists projects as cards or rows: name, client, address, floor count, device count, last edited (who and when), and a sheet thumbnail. Search by name, client or address. Sort by last edited. Archive hides a project without deleting it, with an Archived filter to see them.
+• R-16 Project fields. Name (required), client, site address, job number, notes. Editable later from a project settings panel.
+• R-17 Upload. On a new or existing project, drag-and-drop or pick files: PDF, PNG, JPG. Allow multiple files at once, up to UPLOAD_MAX_MB each. Show per-file progress.
+• R-18 PDF conversion. The server renders each PDF page to PNG with pdftoppm -r $PDF_RENDER_DPI and uses each sheet as-is (no cropping or rotation). Conversion runs in a background job; the UI shows "Converting page 3 of 12" and adds floors as pages finish. Keep the original PDF on disk.
+• R-19 Page picker. After a multi-page PDF converts, show page thumbnails with checkboxes so the user picks which pages become floors (a full set often includes elevations and details). Default name per page: the sheet number and title pulled from the PDF text layer when pdftotext finds one (e.g. "A2.1 1st Floor Plan"), otherwise "Page N".
+• R-20 Sheet metadata. For each floor, record exact pixel width and height from the image file. Generate a 600 px wide thumbnail and a web preview (no wider than 8000 px) with sharp. Serve images with long cache headers and content-hashed URLs.
+• R-21 Floor management. Rename floors, set the sheet number, drag to reorder tabs, delete a floor (with a confirm that names how many markers it removes).
+• R-22 Replace sheet. Upload a revised drawing for an existing floor. Markers keep their 0–1 fractional positions. If the new image's aspect ratio differs by more than 2%, warn before applying. Keep the old image as a revision with its upload date.
+• R-23 Duplicate project. Copy a project with its sheets, with or without markers (for a similar house or a template).
+Device library
+The palette comes from a device library stored in the database. It is seeded with the 22 types below, and admins can edit it.
+Category
+Color
+Codes and names
+Audio
+Blue #1f6fd1
+SPK In-ceiling speaker · IWS In-wall speaker · SUB Subwoofer · OSP Outdoor speaker · VOL Volume control
+Video
+Purple #7a3fc2
+TV TV · TVARC TV/ARC · PRJ Projector · SBR Soundbar
+Control
+Red #d12f2f
+KPD Keypad · TS Touchscreen · TSTAT Thermostat · SHD Shade · SEN Sensor
+Network
+Green #1e8f4e
+DMRC Demarc · WAP Wireless AP · DATA Data drop · RACK Equipment rack
+Security
+Orange #e07a10
+CAM Camera · DBL Video doorbell · LCK Smart lock
+Other
+Gray #6b7280
+NOTE Note
+• R-24 Library admin. Admins add, rename, recolor and reorder categories, and add, rename, move and reorder device types. A code is 1–6 uppercase letters, unique across the library.
+• R-25 Retire, don't delete. A type that any marker uses can only be retired: it leaves the palette but still shows and exports on existing markers. Unused types can be deleted.
+• R-26 Optional type fields. Default model or part number, and default notes, both copied into a new marker's notes field when placed. These are blank in the seed.
+• R-27 Contrast. Marker labels are white on the category color. When an admin picks a color, the editor warns if white text would fall below 4.5:1 contrast on it.
+Markup canvas
+The canvas has to feel as direct as the prototype: one click places a device, and dragging moves it. It must stay smooth at 500 markers on a 5400 × 3600 px sheet.
+• R-28 Placing. Pick a device type in the palette, then click or tap the plan to place a marker labeled code + number (SPK1, SPK2…). The type stays armed for repeat placement until the user presses Escape, picks Select, or clicks the armed type again. A floating hint reads "Placing In-ceiling speaker · next SPK4" with a Done button. Clicks outside the sheet's bounds place nothing.
+• R-29 Numbering. Numbers count up per type across the whole project, so SPK numbers never repeat between floors. Next number = highest existing number for that type + 1, so deleting SPK3 doesn't renumber the others. Assign numbers on the server inside a transaction so two users placing at once never get the same tag.
+• R-30 Renumber. A project-level "Renumber" action re-sequences one type (or all types) by floor order, then top-to-bottom, left-to-right. It shows a preview of old → new tags before applying.
+• R-31 Moving. Drag a marker to move it, with a 5 px threshold before a drag starts so a tap still selects. Clamp to the sheet. Save the position on release.
+• R-32 Panning and zoom. Drag empty plan to pan. The scroll wheel and trackpad pinch zoom toward the cursor; two-finger pinch on touch zooms toward the pinch midpoint. Toolbar buttons − / + / Fit, with the zoom shown as a percentage of Fit. Allow zoom from 50% to 1200% of Fit. Remember each floor's view while the user switches tabs.
+• R-33 Marker size. Markers stay the same screen size at every zoom level. Render them in an overlay layer positioned from the sheet transform, not scaled with the image.
+• R-34 Coordinates. Store positions as 0–1 fractions of sheet width and height (5 decimal places), so they survive a sheet replacement or a different render resolution.
+• R-35 Selection. Click a marker to select it (outline ring). Shift-click or drag a marquee in Select mode to multi-select; multi-selected markers move together and delete together.
+• R-36 Keyboard. Delete / Backspace removes the selection. Escape deselects, then disarms the tool. Arrow keys nudge the selection 1 screen px (10 with Shift). + / − / 0 zoom in, zoom out and fit. Ctrl/⌘+Z and Ctrl/⌘+Shift+Z undo and redo. Shortcuts are ignored while typing in a field.
+• R-37 Undo. Keep a session undo/redo stack of the last 50 actions: place, move, delete, edit, renumber. Deleting shows a toast "Deleted SPK4" with an Undo button for 7 seconds. Undo restores the marker with its original ID, tag and fields.
+• R-38 Copy and duplicate. Ctrl/⌘+C / V copies the selected markers to the same or another floor of the same project, with new numbers. Alt-drag duplicates in place.
+• R-39 Rendering. Use a DOM or SVG overlay over a CSS-transformed image, or a canvas; either way, frame-rate pan and zoom with 500 markers on a mid-range phone is the bar. Use pointer events with pointer capture throughout, and touch-action: none on the plan.
+Side panel
+The right panel holds the selected marker's editor on top and the current floor's device schedule below it.
+• R-40 Editor fields. Tag (read-only badge in the category color), Type (dropdown grouped by category), Number, Room, Mount height, Notes. Show the floor and x/y fractions as small text under the tag. Include a Delete button.
+• R-41 Changing type. Changing a marker's type assigns the next number for the new type and updates the badge right away.
+• R-42 Duplicate tags. If the user types a number already used by that type anywhere in the project, show an inline warning naming the floor ("SPK3 is already used on 2nd Floor"). Allow saving anyway.
+• R-43 Room autocomplete. Suggest rooms already used in this project, case-insensitive. On a new marker, prefill the room from the last marker placed on the same floor within 2 minutes.
+• R-44 Autosave. Save edits after a 400 ms pause in typing, and on blur. Never lose the text in the field being typed in when an update arrives from the server or another user.
+• R-45 Multi-select editing. With several markers selected, the editor shows the count and lets the user set Room or Notes for all of them at once.
+• R-46 Schedule. List the current floor's markers grouped by type in library order, with a count per group and the floor total. Each row: tag, room, and notes truncated to one line. Show "No room" in muted text when room is blank.
+• R-47 Schedule actions. Clicking a row selects that marker and animates the view to center on it, zoomed to at least 250% of Fit. A filter box filters rows by tag, room or notes. A toggle switches between "This floor" and "All floors".
+• R-48 Floor tabs. Each floor tab shows its name, sheet number and live device count. A project total sits under the schedule.
+Saving, sync and data model
+Every change saves to the server as it happens; there is no Save button. Two people working on one project see each other's changes within 2 seconds.
+• R-49 Optimistic writes. The UI applies a change immediately, then sends it. On failure it retries once, then rolls back and shows an error toast that says what failed.
+• R-50 Save status. The toolbar shows Saved / Saving… / Offline, changes queued / Save failed. Queue edits while offline and send them in order on reconnect.
+• R-51 Live updates. Each open project subscribes to a Server-Sent Events stream of marker, floor and project changes. Other users' changes apply without disturbing the local selection or a field being typed in.
+• R-52 Conflicts. Last write wins per marker, compared by updated_at on the server. The server rejects a write against a deleted marker, and the client drops it quietly.
+• R-53 Presence. Show the avatars or initials of other users viewing the same project in the toolbar.
+• R-54 Soft delete. Deleting a marker, floor or project sets deleted_at. A nightly job purges rows deleted more than 30 days ago. Admins can restore a deleted project from an Archive/Trash view.
+• R-55 Activity log. Record who created, moved, edited or deleted each marker, and when. Show the last 50 entries in a project History panel.
+Table
+Key fields
+users
+id, email (unique), name, role, password_hash, active, created_at
+sessions
+id, user_id, expires_at
+projects
+id, name, client, address, job_number, notes, archived_at, deleted_at, created_by, updated_at
+floors
+id, project_id, name, sheet_number, sort_order, image_path, thumb_path, width_px, height_px, deleted_at
+sheet_revisions
+id, floor_id, image_path, width_px, height_px, uploaded_by, uploaded_at
+uploads
+id, project_id, original_path, kind (pdf/image), page_count, status, error
+device_categories
+id, name, color_hex, sort_order
+device_types
+id, category_id, code (unique), name, default_model, default_notes, sort_order, retired_at
+markers
+id (UUID, client-generated), project_id, floor_id, type_id, number, x, y, room, mount_height, notes, created_by, updated_by, updated_at, deleted_at
+activity
+id, project_id, user_id, marker_id, action, before (JSON), after (JSON), at
+Marker IDs are UUIDs made in the browser, so an offline placement and its later edits refer to the same row. Index markers on (project_id, deleted_at) and on (project_id, type_id, number).
+Outputs
+Three exports are available to every role: a plain-text device list, a print PDF and a CSV.
+• R-56 Copy device list. Copies plain text to the clipboard: project name and date, then each floor's heading with its count, then one line per device (tag, type, room, x and y to 3 decimals, notes). If clipboard access fails, show the text selected in a dialog.
+• R-57 Print PDF. Generated on the server at GET /api/projects/:id/export.pdf, with options for which floors to include.
+    ◦ One 11 × 17 landscape page per floor: the plan scaled to fit, colored markers matching the app, and a title strip with the logo, project name, client and address, floor name and sheet number, export date, and that floor's device count.
+    ◦ A legend on each floor page showing only the types used there, with counts.
+    ◦ Then letter-size portrait pages: a device schedule table (tag, type, floor, room, mount height, notes) grouped by floor, repeating its header row on each page.
+    ◦ A totals table at the end: types down the side, floors across, a total column.
+    ◦ Embed the plan as JPEG at no more than 200 DPI at print size, keeping a 6-floor PDF under 25 MB. Embed the app fonts so text matches the UI.
+• R-58 CSV export. GET /api/projects/:id/export.csv with columns floor, sheet, tag, code, type, category, number, room, mount_height, notes, x, y. UTF-8 with a BOM so Excel opens it cleanly.
+• R-59 Filenames. <project-name>-device-plan-<YYYY-MM-DD>.pdf and .csv, with the name slugged.
+• Phase 2: a bill of materials export that maps types to default models and quantities, and a JSON import/export of a whole project for moving it between installs.
+UI and design
+Match the prototype's layout and brand. Include its HTML file in the repo under docs/prototype/ as the visual reference.
+• R-60 Editor layout. A top toolbar holds the logo, project name, floor tabs with counts, zoom − / + / Fit, presence and save status. Below it are three columns: the device palette (about 228 px) on the left, the plan in the center (fills the rest), and the editor + schedule (about 336 px) on the right.
+• R-61 Phones. Under 860 px wide, stack the plan at the top (64% of viewport height), then the palette as a wrapping grid of code chips, then the editor and schedule. The page never scrolls sideways at any width down to 360 px. Tap targets are at least 40 px.
+• R-62 Brand. Use the Six Point logo (/public/logo.png, supplied). Accent: magenta #c4105c in light mode and #ff4f95 in dark mode, with plum #5b1762 for eyebrow labels. The logo's color spectrum appears as a 3 px band under the toolbar and on the PDF title strip: #d80060 #d83030 #f07800 #f0a800 #a8c018 #1a8a4a #009078 #00a8d8 #0078a8 #781878.
+• R-63 Type. Headings: Barlow Semi Condensed 600/700. Body: IBM Plex Sans 400/500/600. Tags, counts and coordinates: IBM Plex Mono 500/600 with tabular numerals. Self-host the fonts (e.g. @fontsource packages) so the app works without reaching Google.
+• R-64 Dark mode. Follow the OS setting by default, with a Light / Dark / System toggle in the user menu saved per user. Define all colors as CSS custom properties with light and dark values. Category colors and white marker text stay the same in both modes.
+• R-65 Accessibility. Visible focus rings, labels on every control, aria-pressed on palette buttons, keyboard access to every action except free placement. Respect prefers-reduced-motion (no animated recentering).
+• R-66 Empty states. A new project with no sheets shows the upload drop zone in the plan area. A floor with no markers shows "Pick a device type on the left and click the plan to place one" in the schedule.
+API, quality and acceptance
+The API is JSON over REST under /api, validated with zod on both ends and documented as OpenAPI at /api/docs. It also lets Claude or a script read the markers back later.
+Method and path
+Purpose
+POST /api/auth/login, POST /api/auth/logout, GET /api/me
+Session
+GET/POST /api/users, PATCH /api/users/:id
+User admin
+GET/POST /api/projects, GET/PATCH/DELETE /api/projects/:id
+Projects
+POST /api/projects/:id/uploads, GET /api/uploads/:id
+Upload a plan file, poll conversion status
+POST /api/projects/:id/floors, PATCH/DELETE /api/floors/:id, POST /api/floors/:id/sheet
+Floors and sheet replacement
+GET /api/projects/:id/markers, PUT /api/markers/:id, PATCH /api/markers/batch, DELETE /api/markers/:id
+Markers (PUT upserts by client UUID)
+POST /api/projects/:id/renumber
+Renumber preview and apply
+GET /api/projects/:id/events
+SSE change stream
+GET /api/projects/:id/export.pdf, export.csv, export.txt
+Outputs
+GET/POST/PATCH /api/device-library/...
+Categories and types
+POST /api/tokens
+Admin-created read-only API tokens for scripts
+• R-67 Performance. A project with 10 floors and 2,000 markers opens in under 2 s on a 50 Mbps connection. A marker write round-trips in under 150 ms on a LAN. A 20-page PDF converts in under 60 s.
+• R-68 Security. Uploads are checked by magic bytes, not extension. PDFs render in a subprocess with a 120 s timeout and no network access. Every query is parameterized. Sheet images are served only to signed-in users.
+• R-69 Tests. Unit tests (Vitest) for numbering, renumber ordering, coordinate math and PDF layout. API integration tests against a throwaway Postgres. Playwright end-to-end tests for the acceptance list below, run at 1440 px desktop and on an iPhone 13 profile.
+• R-70 Repo. One repository with /server, /web and /shared packages (pnpm workspaces), ESLint + Prettier, a README covering setup, env vars, backup and restore, and a GitHub Actions workflow that lints, tests and builds the image.
+• R-71 Sample data. pnpm seed:demo creates the Harless Residence project from the two sample sheets in docs/samples/ with about 20 example markers, labeled as demo data.
+Acceptance: v1 is done when each of these passes on a fresh docker compose up.
+[ ] The admin from .env signs in, creates an Editor and a Viewer, and each sees only the controls their role allows.
+[ ] Uploading the Harless 2-page PDF yields two floors with the right pixel sizes, named from their sheet titles.
+[ ] Placing three speakers on floor 1 and two on floor 2 gives SPK1–SPK3 and SPK4–SPK5.
+[ ] Dragging, editing room and notes, then reloading keeps every change.
+[ ] Delete then Undo restores the same marker; Ctrl/⌘+Z works for a move.
+[ ] Two browsers on the same project see each other's placements within 2 s.
+[ ] Pinch-zoom and pan work on a phone with no sideways page scroll, and markers stay the same size.
+[ ] Replacing a sheet with a re-rendered copy keeps markers in the same spots.
+[ ] The PDF has one 11×17 page per floor plus the schedule and totals, and its counts match the app.
+[ ] CSV opens in Excel with correct columns, and Copy device list pastes as described.
+[ ] Stopping and restarting the containers loses nothing; backup.sh then restore.sh into a new stack restores it all.

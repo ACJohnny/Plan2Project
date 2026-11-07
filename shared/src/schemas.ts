@@ -1,0 +1,263 @@
+import { z } from 'zod';
+
+/** API contracts shared by server (validation + OpenAPI) and web (typed client). */
+
+export const Role = z.enum(['admin', 'editor', 'viewer']);
+export type Role = z.infer<typeof Role>;
+export const Theme = z.enum(['system', 'light', 'dark']);
+export type Theme = z.infer<typeof Theme>;
+
+export const Id = z.string().uuid();
+const ts = z.string(); // ISO timestamp
+
+export const User = z.object({
+  id: Id,
+  email: z.string(),
+  name: z.string(),
+  role: Role,
+  active: z.boolean(),
+  theme: Theme,
+  createdAt: ts,
+});
+export type User = z.infer<typeof User>;
+
+export const LoginBody = z.object({ email: z.string().email(), password: z.string().min(1) });
+export const MeResponse = z.object({ user: User, csrf: z.string().optional() });
+export const UpdateMeBody = z
+  .object({
+    name: z.string().trim().min(1).max(120).optional(),
+    theme: Theme.optional(),
+    currentPassword: z.string().optional(),
+    newPassword: z.string().min(8).max(200).optional(),
+  })
+  .refine((b) => !b.newPassword || b.currentPassword, { message: 'currentPassword required to change password' });
+
+export const CreateUserBody = z.object({
+  email: z.string().email(),
+  name: z.string().trim().min(1).max(120),
+  role: Role,
+  password: z.string().min(8).max(200),
+});
+export const UpdateUserBody = z.object({
+  name: z.string().trim().min(1).max(120).optional(),
+  role: Role.optional(),
+  active: z.boolean().optional(),
+  password: z.string().min(8).max(200).optional(),
+});
+
+export const Project = z.object({
+  id: Id,
+  name: z.string(),
+  client: z.string(),
+  address: z.string(),
+  jobNumber: z.string(),
+  notes: z.string(),
+  archivedAt: ts.nullable(),
+  deletedAt: ts.nullable(),
+  createdBy: Id.nullable(),
+  updatedAt: ts,
+  updatedByName: z.string().nullable(),
+  floorCount: z.number(),
+  deviceCount: z.number(),
+  thumbUrl: z.string().nullable(),
+});
+export type Project = z.infer<typeof Project>;
+
+export const ProjectFields = z.object({
+  name: z.string().trim().min(1).max(200),
+  client: z.string().max(200).default(''),
+  address: z.string().max(400).default(''),
+  jobNumber: z.string().max(80).default(''),
+  notes: z.string().max(10000).default(''),
+});
+export const CreateProjectBody = ProjectFields;
+export const UpdateProjectBody = ProjectFields.partial().extend({
+  archived: z.boolean().optional(),
+  restore: z.boolean().optional(),
+});
+export const DuplicateProjectBody = z.object({ name: z.string().trim().min(1).max(200), withMarkers: z.boolean() });
+
+export const Floor = z.object({
+  id: Id,
+  projectId: Id,
+  name: z.string(),
+  sheetNumber: z.string(),
+  sortOrder: z.number(),
+  imageUrl: z.string(),
+  previewUrl: z.string(),
+  thumbUrl: z.string(),
+  widthPx: z.number(),
+  heightPx: z.number(),
+  previewWidthPx: z.number(),
+  updatedAt: ts,
+});
+export type Floor = z.infer<typeof Floor>;
+export const UpdateFloorBody = z.object({
+  name: z.string().trim().min(1).max(120).optional(),
+  sheetNumber: z.string().max(40).optional(),
+});
+export const ReorderFloorsBody = z.object({ floorIds: z.array(Id).min(1) });
+
+export const SheetRevision = z.object({
+  id: Id,
+  floorId: Id,
+  imageUrl: z.string(),
+  widthPx: z.number(),
+  heightPx: z.number(),
+  uploadedBy: z.string().nullable(),
+  uploadedAt: ts,
+});
+
+export const UploadPage = z.object({
+  page: z.number(),
+  floorId: Id.nullable(),
+  name: z.string(),
+  sheetNumber: z.string(),
+  thumbUrl: z.string().nullable(),
+  widthPx: z.number(),
+  heightPx: z.number(),
+});
+export const Upload = z.object({
+  id: Id,
+  projectId: Id,
+  kind: z.enum(['pdf', 'image']),
+  filename: z.string(),
+  pageCount: z.number(),
+  pagesDone: z.number(),
+  status: z.enum(['queued', 'converting', 'done', 'failed']),
+  error: z.string().nullable(),
+  pages: z.array(UploadPage),
+});
+export type Upload = z.infer<typeof Upload>;
+export const PickPagesBody = z.object({ keepPages: z.array(z.number().int().min(1)) });
+
+export const HexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/);
+export const Code = z.string().regex(/^[A-Z]{1,6}$/, 'Code must be 1–6 uppercase letters');
+
+export const Category = z.object({ id: Id, name: z.string(), color: HexColor, sortOrder: z.number() });
+export type Category = z.infer<typeof Category>;
+export const DeviceType = z.object({
+  id: Id,
+  categoryId: Id,
+  code: Code,
+  name: z.string(),
+  defaultModel: z.string(),
+  defaultNotes: z.string(),
+  sortOrder: z.number(),
+  retiredAt: ts.nullable(),
+  inUse: z.number(),
+});
+export type DeviceType = z.infer<typeof DeviceType>;
+export const Library = z.object({ categories: z.array(Category), types: z.array(DeviceType) });
+export type Library = z.infer<typeof Library>;
+
+export const CreateCategoryBody = z.object({ name: z.string().trim().min(1).max(60), color: HexColor });
+export const UpdateCategoryBody = CreateCategoryBody.partial().extend({ sortOrder: z.number().int().optional() });
+export const CreateTypeBody = z.object({
+  categoryId: Id,
+  code: Code,
+  name: z.string().trim().min(1).max(80),
+  defaultModel: z.string().max(200).default(''),
+  defaultNotes: z.string().max(2000).default(''),
+});
+export const UpdateTypeBody = CreateTypeBody.partial().extend({
+  sortOrder: z.number().int().optional(),
+  retired: z.boolean().optional(),
+});
+export const ReorderBody = z.object({ ids: z.array(Id).min(1) });
+
+const frac = z.number().min(0).max(1);
+export const Marker = z.object({
+  id: Id,
+  projectId: Id,
+  floorId: Id,
+  typeId: Id,
+  number: z.number().int(),
+  x: z.number(),
+  y: z.number(),
+  room: z.string(),
+  mountHeight: z.string(),
+  notes: z.string(),
+  createdBy: Id.nullable(),
+  updatedBy: Id.nullable(),
+  updatedAt: ts,
+});
+export type Marker = z.infer<typeof Marker>;
+
+export const MarkerFields = z.object({
+  floorId: Id,
+  typeId: Id,
+  x: frac,
+  y: frac,
+  room: z.string().max(200).default(''),
+  mountHeight: z.string().max(80).default(''),
+  notes: z.string().max(5000).default(''),
+});
+
+/** PUT /api/markers/:id — upsert by client UUID. Omit `number` (or set autoNumber) to have the server assign it. */
+export const PutMarkerBody = MarkerFields.extend({
+  projectId: Id,
+  number: z.number().int().min(1).max(99999).optional(),
+  autoNumber: z.boolean().optional(),
+  restore: z.boolean().optional(),
+});
+export type PutMarkerBody = z.infer<typeof PutMarkerBody>;
+
+export const MarkerPatch = MarkerFields.partial().extend({
+  id: Id,
+  number: z.number().int().min(1).max(99999).optional(),
+  autoNumber: z.boolean().optional(),
+});
+export type MarkerPatch = z.infer<typeof MarkerPatch>;
+export const BatchMarkersBody = z.object({
+  projectId: Id,
+  updates: z.array(MarkerPatch).max(2000).default([]),
+  creates: z.array(PutMarkerBody.extend({ id: Id })).max(2000).default([]),
+  deletes: z.array(Id).max(2000).default([]),
+});
+export type BatchMarkersBody = z.infer<typeof BatchMarkersBody>;
+export const BatchMarkersResponse = z.object({ markers: z.array(Marker), rejected: z.array(Id), deleted: z.array(Id) });
+
+export const RenumberBody = z.object({ typeId: Id.nullable(), apply: z.boolean() });
+export const RenumberResponse = z.object({
+  changes: z.array(
+    z.object({ id: Id, typeId: Id, floorId: Id, oldTag: z.string(), newTag: z.string(), oldNumber: z.number(), newNumber: z.number() }),
+  ),
+  applied: z.boolean(),
+});
+
+export const Activity = z.object({
+  id: z.number(),
+  userName: z.string().nullable(),
+  markerId: Id.nullable(),
+  action: z.string(),
+  summary: z.string(),
+  at: ts,
+});
+export type Activity = z.infer<typeof Activity>;
+
+export const ApiToken = z.object({
+  id: Id,
+  name: z.string(),
+  createdAt: ts,
+  revokedAt: ts.nullable(),
+  token: z.string().optional(),
+});
+export const CreateTokenBody = z.object({ name: z.string().trim().min(1).max(80) });
+
+export const PresenceUser = z.object({ userId: Id, name: z.string(), initials: z.string(), clientId: z.string() });
+export type PresenceUser = z.infer<typeof PresenceUser>;
+
+/** SSE events on /api/projects/:id/events (R-51). `origin` is the X-Client-Id of the writer. */
+export type ProjectEvent =
+  | { type: 'marker.upsert'; origin: string | null; markers: Marker[] }
+  | { type: 'marker.delete'; origin: string | null; ids: string[] }
+  | { type: 'floor.upsert'; origin: string | null; floors: Floor[] }
+  | { type: 'floor.delete'; origin: string | null; ids: string[]; markerIds: string[] }
+  | { type: 'floor.order'; origin: string | null; floorIds: string[] }
+  | { type: 'project.update'; origin: string | null; project: Project }
+  | { type: 'upload.progress'; origin: string | null; upload: Upload }
+  | { type: 'library.update'; origin: string | null }
+  | { type: 'presence'; origin: null; users: PresenceUser[] };
+
+export const ErrorBody = z.object({ error: z.string(), details: z.any().optional() });
