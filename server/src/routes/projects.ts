@@ -34,29 +34,44 @@ export const projectRoutes: FastifyPluginAsyncZod = async (app) => {
     {
       schema: {
         tags: ['projects'],
-        querystring: z.object({ q: z.string().optional(), view: z.enum(['active', 'archived', 'trash']).default('active') }),
+        querystring: z.object({
+          q: z.string().optional(),
+          view: z.enum(['active', 'archived', 'trash']).default('active'),
+        }),
         response: { 200: z.array(Project) },
       },
       preHandler: requireUser,
     },
     async (req) => {
-      if (req.query.view === 'trash' && req.user!.role !== 'admin') throw new HttpError(403, 'Requires admin role');
+      if (req.query.view === 'trash' && req.user!.role !== 'admin')
+        throw new HttpError(403, 'Requires admin role');
       return listProjects(db, { q: req.query.q, view: req.query.view });
     },
   );
 
-  app.post('/api/projects', { schema: { tags: ['projects'], body: CreateProjectBody, response: { 200: Project } }, preHandler: editor }, async (req) => {
-    const [p] = await db
-      .insert(projects)
-      .values({ ...req.body, createdBy: req.user!.id, updatedBy: req.user!.id })
-      .returning();
-    return getProjectDto(db, p.id);
-  });
+  app.post(
+    '/api/projects',
+    {
+      schema: { tags: ['projects'], body: CreateProjectBody, response: { 200: Project } },
+      preHandler: editor,
+    },
+    async (req) => {
+      const [p] = await db
+        .insert(projects)
+        .values({ ...req.body, createdBy: req.user!.id, updatedBy: req.user!.id })
+        .returning();
+      return getProjectDto(db, p.id);
+    },
+  );
 
   app.get(
     '/api/projects/:id',
     {
-      schema: { tags: ['projects'], params: P, response: { 200: z.object({ project: Project, floors: z.array(Floor) }) } },
+      schema: {
+        tags: ['projects'],
+        params: P,
+        response: { 200: z.object({ project: Project, floors: z.array(Floor) }) },
+      },
       preHandler: requireUser,
     },
     async (req) => {
@@ -73,12 +88,19 @@ export const projectRoutes: FastifyPluginAsyncZod = async (app) => {
   // R-16, archive, restore from trash (R-54)
   app.patch(
     '/api/projects/:id',
-    { schema: { tags: ['projects'], params: P, body: UpdateProjectBody, response: { 200: Project } }, preHandler: editor },
+    {
+      schema: { tags: ['projects'], params: P, body: UpdateProjectBody, response: { 200: Project } },
+      preHandler: editor,
+    },
     async (req) => {
       const { archived, restore, ...fields } = req.body;
       const p = (await db.select().from(projects).where(eq(projects.id, req.params.id)))[0];
       if (!p) throw new HttpError(404, 'Project not found');
-      const patch: Partial<typeof projects.$inferInsert> = { ...fields, updatedAt: new Date(), updatedBy: req.user!.id };
+      const patch: Partial<typeof projects.$inferInsert> = {
+        ...fields,
+        updatedAt: new Date(),
+        updatedBy: req.user!.id,
+      };
       if (p.deletedAt) {
         if (!restore) throw new HttpError(404, 'Project not found');
         if (req.user!.role !== 'admin') throw new HttpError(403, 'Requires admin role');
@@ -92,18 +114,28 @@ export const projectRoutes: FastifyPluginAsyncZod = async (app) => {
     },
   );
 
-  app.delete('/api/projects/:id', { schema: { tags: ['projects'], params: P }, preHandler: admin }, async (req) => {
-    const p = await requireProject(db, req.params.id);
-    await db.update(projects).set({ deletedAt: new Date(), updatedBy: req.user!.id }).where(eq(projects.id, p.id));
-    const dto = await getProjectDto(db, p.id, true);
-    hub.publish(p.id, { type: 'project.update', origin: req.clientId, project: dto });
-    return { ok: true };
-  });
+  app.delete(
+    '/api/projects/:id',
+    { schema: { tags: ['projects'], params: P }, preHandler: admin },
+    async (req) => {
+      const p = await requireProject(db, req.params.id);
+      await db
+        .update(projects)
+        .set({ deletedAt: new Date(), updatedBy: req.user!.id })
+        .where(eq(projects.id, p.id));
+      const dto = await getProjectDto(db, p.id, true);
+      hub.publish(p.id, { type: 'project.update', origin: req.clientId, project: dto });
+      return { ok: true };
+    },
+  );
 
   // R-23
   app.post(
     '/api/projects/:id/duplicate',
-    { schema: { tags: ['projects'], params: P, body: DuplicateProjectBody, response: { 200: Project } }, preHandler: editor },
+    {
+      schema: { tags: ['projects'], params: P, body: DuplicateProjectBody, response: { 200: Project } },
+      preHandler: editor,
+    },
     async (req) => {
       const src = await requireProject(db, req.params.id);
       const newId = await db.transaction(async (tx) => {
@@ -164,7 +196,10 @@ export const projectRoutes: FastifyPluginAsyncZod = async (app) => {
   // R-55
   app.get(
     '/api/projects/:id/activity',
-    { schema: { tags: ['projects'], params: P, response: { 200: z.array(Activity) } }, preHandler: requireUser },
+    {
+      schema: { tags: ['projects'], params: P, response: { 200: z.array(Activity) } },
+      preHandler: requireUser,
+    },
     async (req) => {
       await requireProject(db, req.params.id);
       const rows = await db
@@ -190,7 +225,10 @@ export const projectRoutes: FastifyPluginAsyncZod = async (app) => {
   // R-30: preview (apply=false) or apply
   app.post(
     '/api/projects/:id/renumber',
-    { schema: { tags: ['markers'], params: P, body: RenumberBody, response: { 200: RenumberResponse } }, preHandler: editor },
+    {
+      schema: { tags: ['markers'], params: P, body: RenumberBody, response: { 200: RenumberResponse } },
+      preHandler: editor,
+    },
     async (req) => {
       const projectId = req.params.id;
       await requireProject(db, projectId);
@@ -206,7 +244,11 @@ export const projectRoutes: FastifyPluginAsyncZod = async (app) => {
           .from(markers)
           .where(and(eq(markers.projectId, projectId), isNull(markers.deletedAt)));
         const types = new Map((await tx.select().from(deviceTypes)).map((t) => [t.id, t.code]));
-        const plan = planRenumber(ms, fl.map((f) => f.id), req.body.typeId);
+        const plan = planRenumber(
+          ms,
+          fl.map((f) => f.id),
+          req.body.typeId,
+        );
         const byId = new Map(ms.map((m) => [m.id, m]));
         const changes = plan
           .filter((c) => c.oldNumber !== c.newNumber)
@@ -233,7 +275,15 @@ export const projectRoutes: FastifyPluginAsyncZod = async (app) => {
         return changes;
       });
       if (req.body.apply && result.length) {
-        const rows = await db.select().from(markers).where(inArray(markers.id, result.map((c) => c.id)));
+        const rows = await db
+          .select()
+          .from(markers)
+          .where(
+            inArray(
+              markers.id,
+              result.map((c) => c.id),
+            ),
+          );
         hub.publish(projectId, { type: 'marker.upsert', origin: req.clientId, markers: rows.map(markerDto) });
       }
       return { changes: result, applied: req.body.apply };
@@ -243,7 +293,10 @@ export const projectRoutes: FastifyPluginAsyncZod = async (app) => {
   // Room suggestions (R-43) are derived client-side; this helper serves scripts.
   app.get(
     '/api/projects/:id/rooms',
-    { schema: { tags: ['projects'], params: P, response: { 200: z.array(z.string()) } }, preHandler: requireUser },
+    {
+      schema: { tags: ['projects'], params: P, response: { 200: z.array(z.string()) } },
+      preHandler: requireUser,
+    },
     async (req) => {
       const r = await db.execute(
         sql`select distinct on (lower(room)) room from markers where project_id = ${req.params.id}
@@ -269,7 +322,8 @@ function summarize(action: string, before: any, after: any, tagOf: (s: any) => s
     case 'edit': {
       const fields: string[] = [];
       if (before && after) {
-        if (before.typeId !== after.typeId || before.number !== after.number) fields.push(`tag ${tagOf(before)} → ${tagOf(after)}`);
+        if (before.typeId !== after.typeId || before.number !== after.number)
+          fields.push(`tag ${tagOf(before)} → ${tagOf(after)}`);
         for (const k of ['room', 'mountHeight', 'notes'] as const)
           if (before[k] !== after[k]) fields.push(k === 'mountHeight' ? 'mount height' : k);
       }

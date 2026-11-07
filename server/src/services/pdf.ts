@@ -64,7 +64,14 @@ function safe(s: string): string {
 
 export interface PdfInput {
   project: { name: string; client: string; address: string };
-  floors: { id: string; name: string; sheetNumber: string; imagePath: string; widthPx: number; heightPx: number }[];
+  floors: {
+    id: string;
+    name: string;
+    sheetNumber: string;
+    imagePath: string;
+    widthPx: number;
+    heightPx: number;
+  }[];
   types: Map<string, ExportType>;
   markers: ExportMarker[];
   logoPath: string | null;
@@ -78,12 +85,15 @@ export async function buildPdf(storage: Storage, input: PdfInput): Promise<Uint8
   doc.setCreator('Six Point Markup');
   doc.setProducer('Six Point Markup');
   const F = {} as Record<FontKey, PDFFont>;
-  for (const k of Object.keys(FONT_FILES) as FontKey[]) F[k] = await doc.embedFont(await loadFont(k), { subset: true });
+  for (const k of Object.keys(FONT_FILES) as FontKey[])
+    F[k] = await doc.embedFont(await loadFont(k), { subset: true });
   const date = input.date ?? new Date();
   let logo: PDFImage | null = null;
   if (input.logoPath) {
     try {
-      logo = await doc.embedPng(await sharp(input.logoPath).resize({ height: 120, withoutEnlargement: true }).png().toBuffer());
+      logo = await doc.embedPng(
+        await sharp(input.logoPath).resize({ height: 120, withoutEnlargement: true }).png().toBuffer(),
+      );
     } catch {
       logo = null;
     }
@@ -108,18 +118,45 @@ export async function buildPdf(storage: Storage, input: PdfInput): Promise<Uint8
       tx += lw + 16;
     }
     text(page, 'DEVICE PLAN', tx, ts.y + ts.h - 14, 7.5, F.sansBold, PLUM);
-    text(page, truncate(input.project.name, 420, (s) => w(s, F.headBold, 20)), tx, ts.y + 20, 20, F.headBold);
+    text(
+      page,
+      truncate(input.project.name, 420, (s) => w(s, F.headBold, 20)),
+      tx,
+      ts.y + 20,
+      20,
+      F.headBold,
+    );
     const sub = [input.project.client, input.project.address].filter(Boolean).join(' · ');
-    if (sub) text(page, truncate(sub, 420, (s) => w(s, F.sans, 9)), tx, ts.y + 6, 9, F.sans, MUTED);
+    if (sub)
+      text(
+        page,
+        truncate(sub, 420, (s) => w(s, F.sans, 9)),
+        tx,
+        ts.y + 6,
+        9,
+        F.sans,
+        MUTED,
+      );
     const right = ts.x + ts.w;
-    const floorTitle = floor.sheetNumber && !floor.name.startsWith(floor.sheetNumber) ? `${floor.sheetNumber}  ${floor.name}` : floor.name;
+    const floorTitle =
+      floor.sheetNumber && !floor.name.startsWith(floor.sheetNumber)
+        ? `${floor.sheetNumber}  ${floor.name}`
+        : floor.name;
     const ft = truncate(floorTitle, 420, (s) => w(s, F.head, 18));
     text(page, ft, right - w(ft, F.head, 18), ts.y + 22, 18, F.head);
     const meta = `${ms.length} device${ms.length === 1 ? '' : 's'}  ·  Exported ${isoDate(date)}`;
     text(page, meta, right - w(meta, F.mono, 8.5), ts.y + 7, 8.5, F.mono, MUTED);
     // spectrum band
     const seg = L.band.w / SPECTRUM.length;
-    SPECTRUM.forEach((c, i) => page.drawRectangle({ x: L.band.x + i * seg, y: L.band.y, width: seg + 0.5, height: L.band.h, color: hex(c) }));
+    SPECTRUM.forEach((c, i) =>
+      page.drawRectangle({
+        x: L.band.x + i * seg,
+        y: L.band.y,
+        width: seg + 0.5,
+        height: L.band.h,
+        color: hex(c),
+      }),
+    );
 
     // plan image, JPEG at ≤200 DPI at print size
     const rect = fitRect({ width: floor.widthPx, height: floor.heightPx }, L.planArea);
@@ -131,7 +168,14 @@ export async function buildPdf(storage: Storage, input: PdfInput): Promise<Uint8
       .toBuffer();
     const img = await doc.embedJpg(jpg);
     page.drawImage(img, { x: rect.x, y: rect.y, width: rect.w, height: rect.h });
-    page.drawRectangle({ x: rect.x, y: rect.y, width: rect.w, height: rect.h, borderColor: RULE, borderWidth: 0.5 });
+    page.drawRectangle({
+      x: rect.x,
+      y: rect.y,
+      width: rect.w,
+      height: rect.h,
+      borderColor: RULE,
+      borderWidth: 0.5,
+    });
 
     // markers: white tag on category color, constant size
     for (const m of sortForSchedule(ms, input.types)) {
@@ -175,7 +219,15 @@ export async function buildPdf(storage: Storage, input: PdfInput): Promise<Uint8
   return doc.save();
 }
 
-type TextFn = (p: PDFPage, s: string, x: number, y: number, size: number, font: PDFFont, color?: ReturnType<typeof rgb>) => void;
+type TextFn = (
+  p: PDFPage,
+  s: string,
+  x: number,
+  y: number,
+  size: number,
+  font: PDFFont,
+  color?: ReturnType<typeof rgb>,
+) => void;
 type WidthFn = (s: string, font: PDFFont, size: number) => number;
 
 function drawLegend(
@@ -192,7 +244,10 @@ function drawLegend(
   text(page, 'LEGEND', r.x + 10, y, 8, F.sansBold, PLUM);
   y -= 16;
   const counts = countByType(ms);
-  const used = [...counts.keys()].map((id) => types.get(id)!).filter(Boolean).sort((a, b) => a.order - b.order);
+  const used = [...counts.keys()]
+    .map((id) => types.get(id)!)
+    .filter(Boolean)
+    .sort((a, b) => a.order - b.order);
   if (!used.length) text(page, 'No devices on this floor', r.x + 10, y, 8, F.sans, MUTED);
   for (const t of used) {
     if (y < r.y + 14) break;
@@ -200,17 +255,36 @@ function drawLegend(
     page.drawRectangle({ x: r.x + 10, y: y - 3, width: cw, height: 11, color: hex(t.color) });
     text(page, t.code, r.x + 13, y, 7, F.monoBold, WHITE);
     const n = String(counts.get(t.id));
-    text(page, truncate(t.name, r.w - cw - 46, (s) => w(s, F.sans, 8)), r.x + 16 + cw, y, 8, F.sans);
+    text(
+      page,
+      truncate(t.name, r.w - cw - 46, (s) => w(s, F.sans, 8)),
+      r.x + 16 + cw,
+      y,
+      8,
+      F.sans,
+    );
     text(page, n, r.x + r.w - 10 - w(n, F.monoBold, 8), y, 8, F.monoBold);
     y -= 15;
   }
   const total = `${ms.length}`;
-  page.drawLine({ start: { x: r.x + 10, y: y + 6 }, end: { x: r.x + r.w - 10, y: y + 6 }, thickness: 0.5, color: RULE });
+  page.drawLine({
+    start: { x: r.x + 10, y: y + 6 },
+    end: { x: r.x + r.w - 10, y: y + 6 },
+    thickness: 0.5,
+    color: RULE,
+  });
   text(page, 'Total', r.x + 10, y - 6, 8, F.sansBold);
   text(page, total, r.x + r.w - 10 - w(total, F.monoBold, 8), y - 6, 8, F.monoBold);
 }
 
-function drawSchedule(doc: PDFDocument, input: PdfInput, F: Record<FontKey, PDFFont>, text: TextFn, w: WidthFn, date: Date) {
+function drawSchedule(
+  doc: PDFDocument,
+  input: PdfInput,
+  F: Record<FontKey, PDFFont>,
+  text: TextFn,
+  w: WidthFn,
+  date: Date,
+) {
   const P = LETTER_PORTRAIT;
   const M = 36;
   const cols = [
@@ -230,7 +304,10 @@ function drawSchedule(doc: PDFDocument, input: PdfInput, F: Record<FontKey, PDFF
       input.markers.filter((m) => m.floorId === f.id),
       input.types,
     );
-    rows.push({ kind: 'floor', label: `${f.name}${f.sheetNumber && !f.name.startsWith(f.sheetNumber) ? ` (${f.sheetNumber})` : ''} — ${ms.length} device${ms.length === 1 ? '' : 's'}` });
+    rows.push({
+      kind: 'floor',
+      label: `${f.name}${f.sheetNumber && !f.name.startsWith(f.sheetNumber) ? ` (${f.sheetNumber})` : ''} — ${ms.length} device${ms.length === 1 ? '' : 's'}`,
+    });
     for (const m of ms) {
       const t = input.types.get(m.typeId);
       const raw = [`${t?.code ?? '?'}${m.number}`, t?.name ?? '', f.name, m.room, m.mountHeight, m.notes];
@@ -240,7 +317,9 @@ function drawSchedule(doc: PDFDocument, input: PdfInput, F: Record<FontKey, PDFF
       rows.push({ kind: 'item', cells, color: t?.color ?? '#6b7280' });
     }
   }
-  const heights = rows.map((r) => (r.kind === 'floor' ? 22 : Math.max(1, ...r.cells.map((c) => c.length)) * lineH + 5));
+  const heights = rows.map((r) =>
+    r.kind === 'floor' ? 22 : Math.max(1, ...r.cells.map((c) => c.length)) * lineH + 5,
+  );
   const top = P.height - M;
   const titleH = 40;
   const headH = 18;
@@ -273,7 +352,12 @@ function drawSchedule(doc: PDFDocument, input: PdfInput, F: Record<FontKey, PDFF
       const h = heights[i];
       if (r.kind === 'floor') {
         text(page, r.label, M + 3, y - 15, 10, F.head);
-        page.drawLine({ start: { x: M, y: y - h + 1 }, end: { x: P.width - M, y: y - h + 1 }, thickness: 0.8, color: INK });
+        page.drawLine({
+          start: { x: M, y: y - h + 1 },
+          end: { x: P.width - M, y: y - h + 1 },
+          thickness: 0.8,
+          color: INK,
+        });
       } else {
         x = M;
         r.cells.forEach((lines, ci) => {
@@ -290,21 +374,35 @@ function drawSchedule(doc: PDFDocument, input: PdfInput, F: Record<FontKey, PDFF
           if (ci === 3 && !lines.length) text(page, 'No room', x + 3, y - 10, size, F.sans, MUTED);
           x += cols[ci].w;
         });
-        page.drawLine({ start: { x: M, y: y - h }, end: { x: P.width - M, y: y - h }, thickness: 0.4, color: RULE });
+        page.drawLine({
+          start: { x: M, y: y - h },
+          end: { x: P.width - M, y: y - h },
+          thickness: 0.4,
+          color: RULE,
+        });
       }
       y -= h;
     }
   });
 }
 
-function drawTotals(doc: PDFDocument, input: PdfInput, F: Record<FontKey, PDFFont>, text: TextFn, w: WidthFn) {
+function drawTotals(
+  doc: PDFDocument,
+  input: PdfInput,
+  F: Record<FontKey, PDFFont>,
+  text: TextFn,
+  w: WidthFn,
+) {
   const counts = new Map<string, Map<string, number>>(); // typeId -> floorId -> n
   for (const m of input.markers) {
     let byFloor = counts.get(m.typeId);
     if (!byFloor) counts.set(m.typeId, (byFloor = new Map()));
     byFloor.set(m.floorId, (byFloor.get(m.floorId) ?? 0) + 1);
   }
-  const types = [...counts.keys()].map((id) => input.types.get(id)!).filter(Boolean).sort((a, b) => a.order - b.order);
+  const types = [...counts.keys()]
+    .map((id) => input.types.get(id)!)
+    .filter(Boolean)
+    .sort((a, b) => a.order - b.order);
   const P = input.floors.length > 6 ? LETTER_LANDSCAPE : LETTER_PORTRAIT;
   const M = 36;
   const typeW = 150;
@@ -312,7 +410,11 @@ function drawTotals(doc: PDFDocument, input: PdfInput, F: Record<FontKey, PDFFon
   const colW = Math.max(28, (P.width - M * 2 - typeW - totalW) / Math.max(1, input.floors.length));
   const rowH = 16;
   const size = input.floors.length > 10 ? 6.5 : 8;
-  const pages = paginate(types.map(() => rowH).concat([rowH + 4]), P.height - M * 2 - 70, P.height - M * 2 - 40);
+  const pages = paginate(
+    types.map(() => rowH).concat([rowH + 4]),
+    P.height - M * 2 - 70,
+    P.height - M * 2 - 40,
+  );
 
   const header = (page: PDFPage, y: number) => {
     page.drawRectangle({ x: M, y: y - 30, width: P.width - M * 2, height: 30, color: hex('#f3eff5') });
@@ -320,7 +422,17 @@ function drawTotals(doc: PDFDocument, input: PdfInput, F: Record<FontKey, PDFFon
     input.floors.forEach((f, i) => {
       const label = f.sheetNumber || f.name;
       const lines = wrapText(label, colW - 4, (s) => w(s, F.sansBold, 6.5), 2);
-      lines.forEach((ln, li) => text(page, ln, M + typeW + i * colW + colW - 3 - w(ln, F.sansBold, 6.5), y - 12 - li * 8, 6.5, F.sansBold, PLUM));
+      lines.forEach((ln, li) =>
+        text(
+          page,
+          ln,
+          M + typeW + i * colW + colW - 3 - w(ln, F.sansBold, 6.5),
+          y - 12 - li * 8,
+          6.5,
+          F.sansBold,
+          PLUM,
+        ),
+      );
     });
     text(page, 'TOTAL', P.width - M - 3 - w('TOTAL', F.sansBold, 7), y - 19, 7, F.sansBold, PLUM);
     return y - 30;
@@ -339,9 +451,7 @@ function drawTotals(doc: PDFDocument, input: PdfInput, F: Record<FontKey, PDFFon
       const isTotal = i === types.length;
       const t = types[i];
       const cells = input.floors.map((f) =>
-        isTotal
-          ? input.markers.filter((m) => m.floorId === f.id).length
-          : (counts.get(t.id)?.get(f.id) ?? 0),
+        isTotal ? input.markers.filter((m) => m.floorId === f.id).length : (counts.get(t.id)?.get(f.id) ?? 0),
       );
       const total = cells.reduce((a, b) => a + b, 0);
       if (isTotal) {
@@ -351,15 +461,35 @@ function drawTotals(doc: PDFDocument, input: PdfInput, F: Record<FontKey, PDFFon
         const cw = w(t.code, F.monoBold, 7) + 5;
         page.drawRectangle({ x: M + 3, y: y - 13, width: cw, height: 10, color: hex(t.color) });
         text(page, t.code, M + 5.5, y - 10.5, 7, F.monoBold, WHITE);
-        text(page, truncate(t.name, typeW - cw - 12, (s) => w(s, F.sans, size)), M + cw + 8, y - 11, size, F.sans);
+        text(
+          page,
+          truncate(t.name, typeW - cw - 12, (s) => w(s, F.sans, size)),
+          M + cw + 8,
+          y - 11,
+          size,
+          F.sans,
+        );
       }
       cells.forEach((n, ci) => {
         const s = n ? String(n) : '–';
-        text(page, s, M + typeW + ci * colW + colW - 3 - w(s, F.mono, size), y - 11, size, isTotal ? F.monoBold : F.mono, n ? INK : MUTED);
+        text(
+          page,
+          s,
+          M + typeW + ci * colW + colW - 3 - w(s, F.mono, size),
+          y - 11,
+          size,
+          isTotal ? F.monoBold : F.mono,
+          n ? INK : MUTED,
+        );
       });
       const ts = String(total);
       text(page, ts, P.width - M - 3 - w(ts, F.monoBold, size), y - 11, size, F.monoBold);
-      page.drawLine({ start: { x: M, y: y - rowH }, end: { x: P.width - M, y: y - rowH }, thickness: 0.4, color: RULE });
+      page.drawLine({
+        start: { x: M, y: y - rowH },
+        end: { x: P.width - M, y: y - rowH },
+        thickness: 0.4,
+        color: RULE,
+      });
       y -= isTotal ? rowH + 4 : rowH;
     }
   });

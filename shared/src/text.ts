@@ -109,7 +109,11 @@ export const CSV_COLUMNS = [
   'y',
 ] as const;
 
-export function deviceCsv(floors: ExportFloor[], types: Map<string, ExportType>, markers: ExportMarker[]): string {
+export function deviceCsv(
+  floors: ExportFloor[],
+  types: Map<string, ExportType>,
+  markers: ExportMarker[],
+): string {
   const rows: string[] = [CSV_COLUMNS.join(',')];
   for (const f of floors) {
     for (const m of sortForSchedule(
@@ -147,20 +151,24 @@ export function extractSheetTitle(text: string): { sheetNumber: string; title: s
     .map((l) => l.replace(/\s+/g, ' ').trim())
     .filter(Boolean);
   const num = /\b([A-Z]{1,2}-?\d{1,3}(?:\.\d{1,2})?)\b/;
-  const titleWords = /(PLAN|FLOOR|LEVEL|BASEMENT|ELEVATION|SECTION|DETAIL|ROOF|SITE|SCHEDULE|LAYOUT|CEILING|ATTIC|GARAGE)/i;
+  const titleWords =
+    /(PLAN|FLOOR|LEVEL|BASEMENT|ELEVATION|SECTION|DETAIL|ROOF|SITE|SCHEDULE|LAYOUT|CEILING|ATTIC|GARAGE)/i;
   // 1) a line that is "<num> <title>"
   for (let i = lines.length - 1; i >= 0; i--) {
     const m = /^([A-Z]{1,2}-?\d{1,3}(?:\.\d{1,2})?)\s+(.{3,60})$/.exec(lines[i]);
     if (m && titleWords.test(m[2])) return { sheetNumber: m[1], title: tidyTitle(m[2]) };
   }
   // 2) a sheet-number-only line, with the title after a "SHEET TITLE" label or nearby
-  const isNum = (l: string) => /^(?:SHEET\s*(?:NO\.?|NUMBER)?:?\s*)?([A-Z]{1,2}-?\d{1,3}(?:\.\d{1,2})?)$/i.exec(l);
-  const isLabel = (l: string) => /^(SHEET( TITLE| NO\.?| NUMBER)?|TITLE|DRAWING( TITLE)?|SCALE.*|N)$/i.test(l);
+  const isNum = (l: string) =>
+    /^(?:SHEET\s*(?:NO\.?|NUMBER)?:?\s*)?([A-Z]{1,2}-?\d{1,3}(?:\.\d{1,2})?)$/i.exec(l);
+  const isLabel = (l: string) =>
+    /^(SHEET( TITLE| NO\.?| NUMBER)?|TITLE|DRAWING( TITLE)?|SCALE.*|N)$/i.test(l);
   let numIdx = -1;
-  for (let i = lines.length - 1; i >= 0; i--) if (isNum(lines[i]) && /\d/.test(lines[i])) {
-    numIdx = i;
-    break;
-  }
+  for (let i = lines.length - 1; i >= 0; i--)
+    if (isNum(lines[i]) && /\d/.test(lines[i])) {
+      numIdx = i;
+      break;
+    }
   if (numIdx < 0) return null;
   const sheetNumber = isNum(lines[numIdx])![1].toUpperCase();
   const labelIdx = lines.findIndex((l) => /^(SHEET |DRAWING )?TITLE:?$/i.test(l));
@@ -172,7 +180,8 @@ export function extractSheetTitle(text: string): { sheetNumber: string; title: s
   for (let d = 1; d <= 6; d++) {
     for (const j of [numIdx - d, numIdx + d]) {
       const l = lines[j];
-      if (l && titleWords.test(l) && l.length <= 60 && !num.test(l) && !isLabel(l)) return { sheetNumber, title: tidyTitle(l) };
+      if (l && titleWords.test(l) && l.length <= 60 && !num.test(l) && !isLabel(l))
+        return { sheetNumber, title: tidyTitle(l) };
     }
   }
   return { sheetNumber, title: '' };

@@ -8,12 +8,10 @@ SRC="${1:?usage: scripts/restore.sh <backup-dir>}"
 [ -f "$SRC/db.dump" ] && [ -f "$SRC/data.tar.gz" ] || { echo "missing db.dump or data.tar.gz in $SRC" >&2; exit 1; }
 ( cd "$SRC" && sha256sum -c SHA256SUMS )
 
-set -a
-# shellcheck disable=SC1091
-[ -f .env ] && . ./.env
-set +a
-PGUSER="${POSTGRES_USER:-markup}"
-PGDB="${POSTGRES_DB:-markup}"
+# read a value from .env unless it is already set in the environment
+envval() { local v="${!1:-}"; [ -n "$v" ] || v="$(grep -E "^$1=" .env 2>/dev/null | tail -1 | cut -d= -f2-)"; echo "${v:-$2}"; }
+PGUSER="$(envval POSTGRES_USER markup)"
+PGDB="$(envval POSTGRES_DB markup)"
 
 if [ "${FORCE:-}" != "1" ]; then
   read -r -p "This replaces the database and files of the running stack. Type 'restore' to continue: " ok

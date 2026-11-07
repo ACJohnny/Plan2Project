@@ -57,7 +57,12 @@ export async function setupApp() {
 type App = Awaited<ReturnType<typeof setupApp>>['app'];
 
 export async function login(app: App, email: string, password: string) {
-  const res = await app.inject({ method: 'POST', url: '/api/auth/login', headers: { origin: ORIGIN }, payload: { email, password } });
+  const res = await app.inject({
+    method: 'POST',
+    url: '/api/auth/login',
+    headers: { origin: ORIGIN },
+    payload: { email, password },
+  });
   if (res.statusCode !== 200) throw new Error(`login failed ${res.statusCode} ${res.body}`);
   const cookie = res.cookies.find((c) => c.name === 'sp_sid')!;
   return client(app, `sp_sid=${cookie.value}`);
@@ -85,7 +90,9 @@ export function client(app: App, cookie: string, clientId = 'test-client') {
     async upload(url: string, file: string, filename = path.basename(file)) {
       const boundary = '----spmtest' + Math.random().toString(16).slice(2);
       const body = Buffer.concat([
-        Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${filename}"\r\nContent-Type: application/octet-stream\r\n\r\n`),
+        Buffer.from(
+          `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${filename}"\r\nContent-Type: application/octet-stream\r\n\r\n`,
+        ),
         fs.readFileSync(file),
         Buffer.from(`\r\n--${boundary}--\r\n`),
       ]);

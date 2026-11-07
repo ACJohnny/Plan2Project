@@ -55,7 +55,10 @@ export async function createSession(db: DB, userId: string) {
   return { raw, csrf, expiresAt };
 }
 
-export async function resolveSession(db: DB, raw: string): Promise<{ user: AuthUser; sid: string; renew: boolean } | null> {
+export async function resolveSession(
+  db: DB,
+  raw: string,
+): Promise<{ user: AuthUser; sid: string; renew: boolean } | null> {
   const sid = sha256(raw);
   const rows = await db
     .select({ s: sessions, u: users })
@@ -75,7 +78,15 @@ export async function resolveSession(db: DB, raw: string): Promise<{ user: AuthU
   return {
     sid,
     renew,
-    user: { id: r.u.id, email: r.u.email, name: r.u.name, role: r.u.role, theme: r.u.theme, via: 'session', csrf: r.s.csrf },
+    user: {
+      id: r.u.id,
+      email: r.u.email,
+      name: r.u.name,
+      role: r.u.role,
+      theme: r.u.theme,
+      via: 'session',
+      csrf: r.s.csrf,
+    },
   };
 }
 
@@ -88,7 +99,14 @@ export async function resolveToken(db: DB, raw: string): Promise<AuthUser | null
     .limit(1);
   const t = rows[0];
   if (!t) return null;
-  return { id: t.createdBy ?? t.id, email: '', name: `Token: ${t.name}`, role: 'viewer', theme: 'system', via: 'token' };
+  return {
+    id: t.createdBy ?? t.id,
+    email: '',
+    name: `Token: ${t.name}`,
+    role: 'viewer',
+    theme: 'system',
+    via: 'token',
+  };
 }
 
 export async function purgeExpiredSessions(db: DB) {
@@ -156,7 +174,8 @@ export class LoginLimiter {
 
   sweep() {
     const now = Date.now();
-    for (const [k, e] of this.fails) if (now - e.first > WINDOW_MS && e.lockedUntil < now) this.fails.delete(k);
+    for (const [k, e] of this.fails)
+      if (now - e.first > WINDOW_MS && e.lockedUntil < now) this.fails.delete(k);
   }
 }
 

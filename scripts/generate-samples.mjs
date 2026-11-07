@@ -62,13 +62,32 @@ doc.setTitle('Harless Residence — sample plan set (placeholder)');
 for (const f of floors) {
   const p = doc.addPage([W, H]);
   // border
-  p.drawRectangle({ x: 0.5 * IN, y: 0.5 * IN, width: W - IN, height: H - IN, borderColor: ink, borderWidth: 3 });
+  p.drawRectangle({
+    x: 0.5 * IN,
+    y: 0.5 * IN,
+    width: W - IN,
+    height: H - IN,
+    borderColor: ink,
+    borderWidth: 3,
+  });
   // grid
   for (let gx = 2; gx <= 27; gx += 5) {
-    p.drawLine({ start: { x: gx * IN, y: 1 * IN }, end: { x: gx * IN, y: H - 1 * IN }, thickness: 0.6, color: light, dashArray: [18, 10] });
+    p.drawLine({
+      start: { x: gx * IN, y: 1 * IN },
+      end: { x: gx * IN, y: H - 1 * IN },
+      thickness: 0.6,
+      color: light,
+      dashArray: [18, 10],
+    });
   }
   for (let gy = 2; gy <= 22; gy += 5) {
-    p.drawLine({ start: { x: 1 * IN, y: gy * IN }, end: { x: 28 * IN, y: gy * IN }, thickness: 0.6, color: light, dashArray: [18, 10] });
+    p.drawLine({
+      start: { x: 1 * IN, y: gy * IN },
+      end: { x: 28 * IN, y: gy * IN },
+      thickness: 0.6,
+      color: light,
+      dashArray: [18, 10],
+    });
   }
   // rooms (plan coordinates in feet-ish units from top-left; 1 unit = 1 in on paper)
   const ox = 1.5 * IN;
@@ -88,26 +107,48 @@ for (const f of floors) {
   for (const [, x, y, w] of f.rooms) {
     const dx = ox + (x + w / 2) * IN;
     const dy = oy - y * IN;
-    p.drawLine({ start: { x: dx - 18, y: dy }, end: { x: dx + 18, y: dy }, thickness: 9, color: rgb(1, 1, 1) });
+    p.drawLine({
+      start: { x: dx - 18, y: dy },
+      end: { x: dx + 18, y: dy },
+      thickness: 9,
+      color: rgb(1, 1, 1),
+    });
     p.drawLine({ start: { x: dx - 18, y: dy }, end: { x: dx - 18, y: dy - 36 }, thickness: 1.5, color: ink });
   }
   // north arrow + scale
   p.drawText('N', { x: 27 * IN, y: 3.2 * IN, size: 36, font: bold, color: ink });
-  p.drawLine({ start: { x: 27.25 * IN, y: 2 * IN }, end: { x: 27.25 * IN, y: 3 * IN }, thickness: 4, color: ink });
+  p.drawLine({
+    start: { x: 27.25 * IN, y: 2 * IN },
+    end: { x: 27.25 * IN, y: 3 * IN },
+    thickness: 4,
+    color: ink,
+  });
   p.drawText('SCALE: 1/4" = 1\'-0"', { x: 2 * IN, y: 1 * IN, size: 18, font, color: ink });
 
   // title block on the right
   const tbx = 29.5 * IN;
   p.drawLine({ start: { x: tbx, y: 0.5 * IN }, end: { x: tbx, y: H - 0.5 * IN }, thickness: 3, color: ink });
-  const tb = (s, y, size, fnt = font) => p.drawText(s, { x: tbx + 0.4 * IN, y: y * IN, size, font: fnt, color: ink });
+  const tb = (s, y, size, fnt = font) =>
+    p.drawText(s, { x: tbx + 0.4 * IN, y: y * IN, size, font: fnt, color: ink });
   tb('PLACEHOLDER SAMPLE — NOT FOR CONSTRUCTION', 22.6, 13, bold);
   tb('HARLESS RESIDENCE', 21, 34, bold);
   tb('1420 Hollow Creek Road', 20.3, 18);
   tb('Six Point Technology — AV / low voltage', 19.6, 15);
-  for (let i = 0; i < 6; i++) p.drawLine({ start: { x: tbx, y: (17 - i * 1.4) * IN }, end: { x: W - 0.5 * IN, y: (17 - i * 1.4) * IN }, thickness: 0.8, color: light });
+  for (let i = 0; i < 6; i++)
+    p.drawLine({
+      start: { x: tbx, y: (17 - i * 1.4) * IN },
+      end: { x: W - 0.5 * IN, y: (17 - i * 1.4) * IN },
+      thickness: 0.8,
+      color: light,
+    });
   tb('REV  DATE        DESCRIPTION', 16.4, 12, bold);
   tb('0    2026-10-01  ISSUED FOR PERMIT', 15.0, 12);
-  p.drawLine({ start: { x: tbx, y: 5.2 * IN }, end: { x: W - 0.5 * IN, y: 5.2 * IN }, thickness: 3, color: ink });
+  p.drawLine({
+    start: { x: tbx, y: 5.2 * IN },
+    end: { x: W - 0.5 * IN, y: 5.2 * IN },
+    thickness: 3,
+    color: ink,
+  });
   tb('SHEET TITLE', 4.6, 12, bold);
   tb(f.title, 3.8, 30, bold);
   tb('SHEET', 2.7, 12, bold);

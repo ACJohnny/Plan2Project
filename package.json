@@ -4,7 +4,9 @@
   "type": "module",
   "version": "1.0.0",
   "packageManager": "pnpm@9.15.0",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev:server": "pnpm --filter @sixpoint/server dev",
     "dev:web": "pnpm --filter @sixpoint/web dev",

@@ -67,7 +67,12 @@ export function paginate(heights: number[], firstPageSpace: number, pageSpace: n
 }
 
 /** Greedy word wrap using a width function. */
-export function wrapText(text: string, maxWidth: number, width: (s: string) => number, maxLines = 4): string[] {
+export function wrapText(
+  text: string,
+  maxWidth: number,
+  width: (s: string) => number,
+  maxLines = 4,
+): string[] {
   const out: string[] = [];
   for (const para of text.split(/\r?\n/)) {
     let line = '';

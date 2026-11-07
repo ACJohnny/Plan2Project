@@ -46,9 +46,25 @@ export async function pdfPageCount(file: string): Promise<number> {
 }
 
 /** Render one PDF page to PNG with pdftoppm (R-18); returns the PNG path. */
-export async function renderPdfPage(file: string, page: number, dpi: number, outDir: string): Promise<string> {
+export async function renderPdfPage(
+  file: string,
+  page: number,
+  dpi: number,
+  outDir: string,
+): Promise<string> {
   const prefix = path.join(outDir, `page-${page}`);
-  await run('pdftoppm', ['-r', String(dpi), '-png', '-f', String(page), '-l', String(page), '-singlefile', file, prefix]);
+  await run('pdftoppm', [
+    '-r',
+    String(dpi),
+    '-png',
+    '-f',
+    String(page),
+    '-l',
+    String(page),
+    '-singlefile',
+    file,
+    prefix,
+  ]);
   return `${prefix}.png`;
 }
 
@@ -56,7 +72,8 @@ export async function pageTitle(file: string, page: number): Promise<{ name: str
   try {
     const { stdout } = await run('pdftotext', ['-f', String(page), '-l', String(page), file, '-'], 30_000);
     const t = extractSheetTitle(stdout);
-    if (t) return { name: t.title ? `${t.sheetNumber} ${t.title}` : t.sheetNumber, sheetNumber: t.sheetNumber };
+    if (t)
+      return { name: t.title ? `${t.sheetNumber} ${t.title}` : t.sheetNumber, sheetNumber: t.sheetNumber };
   } catch {
     /* no text layer */
   }
@@ -105,7 +122,12 @@ export class PdfJobs {
             .set({ status: 'failed', error: String(err?.message ?? err).slice(0, 500) })
             .where(eq(uploads.id, id))
             .returning();
-          if (u) this.ctx.hub.publish(u.projectId, { type: 'upload.progress', origin: null, upload: uploadDto(u) });
+          if (u)
+            this.ctx.hub.publish(u.projectId, {
+              type: 'upload.progress',
+              origin: null,
+              upload: uploadDto(u),
+            });
         }
       }
     } finally {
@@ -120,8 +142,13 @@ export class PdfJobs {
     const src = storage.abs(up.originalPath);
     const workDir = path.dirname(src);
     const pageCount = await pdfPageCount(src);
-    const publish = (u: typeof up) => hub.publish(u.projectId, { type: 'upload.progress', origin: null, upload: uploadDto(u) });
-    let [cur] = await db.update(uploads).set({ status: 'converting', pageCount }).where(eq(uploads.id, id)).returning();
+    const publish = (u: typeof up) =>
+      hub.publish(u.projectId, { type: 'upload.progress', origin: null, upload: uploadDto(u) });
+    let [cur] = await db
+      .update(uploads)
+      .set({ status: 'converting', pageCount })
+      .where(eq(uploads.id, id))
+      .returning();
     publish(cur);
     const pages: UploadPageRow[] = [];
     for (let p = 1; p <= pageCount; p++) {
@@ -130,7 +157,9 @@ export class PdfJobs {
       await fs.rm(png, { force: true });
       const title = await pageTitle(src, p);
       // the project may have been deleted while converting
-      const live = await db.execute(sql`select 1 from projects where id = ${up.projectId} and deleted_at is null`);
+      const live = await db.execute(
+        sql`select 1 from projects where id = ${up.projectId} and deleted_at is null`,
+      );
       if (!live.rows.length) throw new Error('Project was deleted');
       const f = await createFloor(db, up.projectId, sheet, title.name, title.sheetNumber, id, p);
       await touchProject(db, up.projectId, up.uploadedBy);

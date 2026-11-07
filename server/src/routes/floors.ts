@@ -28,7 +28,12 @@ export const floorRoutes: FastifyPluginAsyncZod = async (app) => {
   const editor = requireRole('editor');
 
   async function liveFloor(id: string) {
-    const f = (await db.select().from(floors).where(and(eq(floors.id, id), isNull(floors.deletedAt))))[0];
+    const f = (
+      await db
+        .select()
+        .from(floors)
+        .where(and(eq(floors.id, id), isNull(floors.deletedAt)))
+    )[0];
     if (!f) throw new HttpError(404, 'Floor not found');
     await requireProject(db, f.projectId);
     return f;
@@ -66,7 +71,17 @@ export const floorRoutes: FastifyPluginAsyncZod = async (app) => {
       .set({
         status: 'done',
         pagesDone: 1,
-        pages: [{ page: 1, floorId: f.id, name, sheetNumber: '', thumbPath: sheet.thumbPath, widthPx: sheet.widthPx, heightPx: sheet.heightPx }],
+        pages: [
+          {
+            page: 1,
+            floorId: f.id,
+            name,
+            sheetNumber: '',
+            thumbPath: sheet.thumbPath,
+            widthPx: sheet.widthPx,
+            heightPx: sheet.heightPx,
+          },
+        ],
       })
       .where(eq(uploads.id, up.id))
       .returning();
@@ -81,7 +96,8 @@ export const floorRoutes: FastifyPluginAsyncZod = async (app) => {
         tags: ['floors'],
         params: P,
         consumes: ['multipart/form-data'],
-        description: 'Upload one PDF, PNG or JPG (field "file"). PDFs convert in the background; poll GET /api/uploads/:id.',
+        description:
+          'Upload one PDF, PNG or JPG (field "file"). PDFs convert in the background; poll GET /api/uploads/:id.',
         response: { 200: Upload },
       },
       preHandler: editor,
@@ -89,11 +105,15 @@ export const floorRoutes: FastifyPluginAsyncZod = async (app) => {
     async (req) => handleUpload(req, req.params.id),
   );
 
-  app.get('/api/uploads/:id', { schema: { tags: ['floors'], params: P, response: { 200: Upload } }, preHandler: requireUser }, async (req) => {
-    const u = (await db.select().from(uploads).where(eq(uploads.id, req.params.id)))[0];
-    if (!u) throw new HttpError(404, 'Upload not found');
-    return uploadDto(u);
-  });
+  app.get(
+    '/api/uploads/:id',
+    { schema: { tags: ['floors'], params: P, response: { 200: Upload } }, preHandler: requireUser },
+    async (req) => {
+      const u = (await db.select().from(uploads).where(eq(uploads.id, req.params.id)))[0];
+      if (!u) throw new HttpError(404, 'Upload not found');
+      return uploadDto(u);
+    },
+  );
 
   app.get(
     '/api/projects/:id/uploads',
@@ -112,7 +132,10 @@ export const floorRoutes: FastifyPluginAsyncZod = async (app) => {
   // R-19: keep only the picked pages as floors
   app.post(
     '/api/uploads/:id/pages',
-    { schema: { tags: ['floors'], params: P, body: PickPagesBody, response: { 200: Upload } }, preHandler: editor },
+    {
+      schema: { tags: ['floors'], params: P, body: PickPagesBody, response: { 200: Upload } },
+      preHandler: editor,
+    },
     async (req) => {
       const u = (await db.select().from(uploads).where(eq(uploads.id, req.params.id)))[0];
       if (!u) throw new HttpError(404, 'Upload not found');
@@ -142,7 +165,12 @@ export const floorRoutes: FastifyPluginAsyncZod = async (app) => {
       const pages = u.pages.map((p) => (p.floorId && drop.includes(p.floorId) ? { ...p, floorId: null } : p));
       const [nu] = await db.update(uploads).set({ pages }).where(eq(uploads.id, u.id)).returning();
       if (removed.length)
-        hub.publish(u.projectId, { type: 'floor.delete', origin: req.clientId, ids: removed, markerIds: removedMarkers });
+        hub.publish(u.projectId, {
+          type: 'floor.delete',
+          origin: req.clientId,
+          ids: removed,
+          markerIds: removedMarkers,
+        });
       await touchProject(db, u.projectId, req.user!.id);
       return uploadDto(nu);
     },
@@ -153,22 +181,32 @@ export const floorRoutes: FastifyPluginAsyncZod = async (app) => {
   // Add one floor from an image or the first page of a PDF, synchronously.
   app.post(
     '/api/projects/:id/floors',
-    { schema: { tags: ['floors'], params: P, consumes: ['multipart/form-data'], response: { 200: Upload } }, preHandler: editor },
+    {
+      schema: { tags: ['floors'], params: P, consumes: ['multipart/form-data'], response: { 200: Upload } },
+      preHandler: editor,
+    },
     async (req) => handleUpload(req, req.params.id),
   );
 
   app.post(
     '/api/projects/:id/floors/reorder',
-    { schema: { tags: ['floors'], params: P, body: ReorderFloorsBody, response: { 200: z.array(Floor) } }, preHandler: editor },
+    {
+      schema: { tags: ['floors'], params: P, body: ReorderFloorsBody, response: { 200: z.array(Floor) } },
+      preHandler: editor,
+    },
     async (req) => {
       const projectId = req.params.id;
       await requireProject(db, projectId);
       const rows = await db.transaction(async (tx) => {
-        const fl = await tx.select().from(floors).where(and(eq(floors.projectId, projectId), isNull(floors.deletedAt)));
+        const fl = await tx
+          .select()
+          .from(floors)
+          .where(and(eq(floors.projectId, projectId), isNull(floors.deletedAt)));
         const known = new Set(fl.map((f) => f.id));
         const order = req.body.floorIds.filter((id) => known.has(id));
         for (const f of fl) if (!order.includes(f.id)) order.push(f.id);
-        for (let i = 0; i < order.length; i++) await tx.update(floors).set({ sortOrder: i }).where(eq(floors.id, order[i]));
+        for (let i = 0; i < order.length; i++)
+          await tx.update(floors).set({ sortOrder: i }).where(eq(floors.id, order[i]));
         return tx
           .select()
           .from(floors)
@@ -183,7 +221,10 @@ export const floorRoutes: FastifyPluginAsyncZod = async (app) => {
 
   app.patch(
     '/api/floors/:id',
-    { schema: { tags: ['floors'], params: P, body: UpdateFloorBody, response: { 200: Floor } }, preHandler: editor },
+    {
+      schema: { tags: ['floors'], params: P, body: UpdateFloorBody, response: { 200: Floor } },
+      preHandler: editor,
+    },
     async (req) => {
       const f = await liveFloor(req.params.id);
       const [nf] = await db
@@ -197,21 +238,30 @@ export const floorRoutes: FastifyPluginAsyncZod = async (app) => {
     },
   );
 
-  app.delete('/api/floors/:id', { schema: { tags: ['floors'], params: P }, preHandler: editor }, async (req) => {
-    const f = await liveFloor(req.params.id);
-    const now = new Date();
-    const removed = await db.transaction(async (tx) => {
-      await tx.update(floors).set({ deletedAt: now }).where(eq(floors.id, f.id));
-      return tx
-        .update(markers)
-        .set({ deletedAt: now, updatedBy: req.user!.id })
-        .where(and(eq(markers.floorId, f.id), isNull(markers.deletedAt)))
-        .returning({ id: markers.id });
-    });
-    await touchProject(db, f.projectId, req.user!.id);
-    hub.publish(f.projectId, { type: 'floor.delete', origin: req.clientId, ids: [f.id], markerIds: removed.map((m) => m.id) });
-    return { ok: true, markersRemoved: removed.length };
-  });
+  app.delete(
+    '/api/floors/:id',
+    { schema: { tags: ['floors'], params: P }, preHandler: editor },
+    async (req) => {
+      const f = await liveFloor(req.params.id);
+      const now = new Date();
+      const removed = await db.transaction(async (tx) => {
+        await tx.update(floors).set({ deletedAt: now }).where(eq(floors.id, f.id));
+        return tx
+          .update(markers)
+          .set({ deletedAt: now, updatedBy: req.user!.id })
+          .where(and(eq(markers.floorId, f.id), isNull(markers.deletedAt)))
+          .returning({ id: markers.id });
+      });
+      await touchProject(db, f.projectId, req.user!.id);
+      hub.publish(f.projectId, {
+        type: 'floor.delete',
+        origin: req.clientId,
+        ids: [f.id],
+        markerIds: removed.map((m) => m.id),
+      });
+      return { ok: true, markersRemoved: removed.length };
+    },
+  );
 
   /* ---------- sheet replacement (R-22) ---------- */
 
@@ -244,12 +294,14 @@ export const floorRoutes: FastifyPluginAsyncZod = async (app) => {
       let staged: typeof uploads.$inferSelect;
       if (req.query.staged) {
         const s = (await db.select().from(uploads).where(eq(uploads.id, req.query.staged)))[0];
-        if (!s || s.targetFloorId !== f.id || !s.pages[0]?.imagePath) throw new HttpError(404, 'Staged sheet not found');
+        if (!s || s.targetFloorId !== f.id || !s.pages[0]?.imagePath)
+          throw new HttpError(404, 'Staged sheet not found');
         staged = s;
       } else {
         const file = await receiveFile(req, storage, cfg.UPLOAD_MAX_MB);
         let src = file.abs;
-        if (file.magic === 'pdf') src = await renderPdfPage(file.abs, 1, cfg.PDF_RENDER_DPI, path.dirname(file.abs));
+        if (file.magic === 'pdf')
+          src = await renderPdfPage(file.abs, 1, cfg.PDF_RENDER_DPI, path.dirname(file.abs));
         const sheet = await storage.storeSheet(src);
         if (src !== file.abs) await fs.rm(src, { force: true });
         const title = file.magic === 'pdf' ? await pageTitle(file.abs, 1) : { name: '', sheetNumber: '' };
@@ -284,9 +336,18 @@ export const floorRoutes: FastifyPluginAsyncZod = async (app) => {
           .returning();
       }
       const pg = staged.pages[0];
-      const diff = aspectDiff({ width: f.widthPx, height: f.heightPx }, { width: pg.widthPx, height: pg.heightPx });
+      const diff = aspectDiff(
+        { width: f.widthPx, height: f.heightPx },
+        { width: pg.widthPx, height: pg.heightPx },
+      );
       if (diff > 0.02 && !req.query.confirm) {
-        return { applied: false, stagedId: staged.id, aspectDiff: diff, widthPx: pg.widthPx, heightPx: pg.heightPx };
+        return {
+          applied: false,
+          stagedId: staged.id,
+          aspectDiff: diff,
+          widthPx: pg.widthPx,
+          heightPx: pg.heightPx,
+        };
       }
       const nf = await db.transaction(async (tx) => {
         await tx.insert(sheetRevisions).values({
@@ -316,13 +377,22 @@ export const floorRoutes: FastifyPluginAsyncZod = async (app) => {
       });
       await touchProject(db, f.projectId, req.user!.id);
       hub.publish(f.projectId, { type: 'floor.upsert', origin: req.clientId, floors: [floorDto(nf)] });
-      return { applied: true, aspectDiff: diff, widthPx: pg.widthPx, heightPx: pg.heightPx, floor: floorDto(nf) };
+      return {
+        applied: true,
+        aspectDiff: diff,
+        widthPx: pg.widthPx,
+        heightPx: pg.heightPx,
+        floor: floorDto(nf),
+      };
     },
   );
 
   app.get(
     '/api/floors/:id/revisions',
-    { schema: { tags: ['floors'], params: P, response: { 200: z.array(SheetRevision) } }, preHandler: requireUser },
+    {
+      schema: { tags: ['floors'], params: P, response: { 200: z.array(SheetRevision) } },
+      preHandler: requireUser,
+    },
     async (req) => {
       const rows = await db
         .select({ r: sheetRevisions, by: users.name })
@@ -345,7 +415,10 @@ export const floorRoutes: FastifyPluginAsyncZod = async (app) => {
   // marker count for the delete confirmation (R-21)
   app.get(
     '/api/floors/:id/marker-count',
-    { schema: { tags: ['floors'], params: P, response: { 200: z.object({ count: z.number() }) } }, preHandler: requireUser },
+    {
+      schema: { tags: ['floors'], params: P, response: { 200: z.object({ count: z.number() }) } },
+      preHandler: requireUser,
+    },
     async (req) => {
       const r = await db.execute(
         sql`select count(*)::int as n from markers where floor_id = ${req.params.id} and deleted_at is null`,

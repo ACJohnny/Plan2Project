@@ -48,7 +48,10 @@ async function main() {
   await storage.init();
 
   const name = 'Harless Residence (demo)';
-  const existing = await db.select().from(projects).where(sql`${projects.name} = ${name} and ${projects.deletedAt} is null`);
+  const existing = await db
+    .select()
+    .from(projects)
+    .where(sql`${projects.name} = ${name} and ${projects.deletedAt} is null`);
   if (existing.length) {
     console.log(JSON.stringify({ msg: 'demo project already exists', id: existing[0].id }));
     await pool.end();

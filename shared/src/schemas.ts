@@ -30,7 +30,9 @@ export const UpdateMeBody = z
     currentPassword: z.string().optional(),
     newPassword: z.string().min(8).max(200).optional(),
   })
-  .refine((b) => !b.newPassword || b.currentPassword, { message: 'currentPassword required to change password' });
+  .refine((b) => !b.newPassword || b.currentPassword, {
+    message: 'currentPassword required to change password',
+  });
 
 export const CreateUserBody = z.object({
   email: z.string().email(),
@@ -75,7 +77,10 @@ export const UpdateProjectBody = ProjectFields.partial().extend({
   archived: z.boolean().optional(),
   restore: z.boolean().optional(),
 });
-export const DuplicateProjectBody = z.object({ name: z.string().trim().min(1).max(200), withMarkers: z.boolean() });
+export const DuplicateProjectBody = z.object({
+  name: z.string().trim().min(1).max(200),
+  withMarkers: z.boolean(),
+});
 
 export const Floor = z.object({
   id: Id,
@@ -152,7 +157,9 @@ export const Library = z.object({ categories: z.array(Category), types: z.array(
 export type Library = z.infer<typeof Library>;
 
 export const CreateCategoryBody = z.object({ name: z.string().trim().min(1).max(60), color: HexColor });
-export const UpdateCategoryBody = CreateCategoryBody.partial().extend({ sortOrder: z.number().int().optional() });
+export const UpdateCategoryBody = CreateCategoryBody.partial().extend({
+  sortOrder: z.number().int().optional(),
+});
 export const CreateTypeBody = z.object({
   categoryId: Id,
   code: Code,
@@ -212,16 +219,31 @@ export type MarkerPatch = z.infer<typeof MarkerPatch>;
 export const BatchMarkersBody = z.object({
   projectId: Id,
   updates: z.array(MarkerPatch).max(2000).default([]),
-  creates: z.array(PutMarkerBody.extend({ id: Id })).max(2000).default([]),
+  creates: z
+    .array(PutMarkerBody.extend({ id: Id }))
+    .max(2000)
+    .default([]),
   deletes: z.array(Id).max(2000).default([]),
 });
 export type BatchMarkersBody = z.infer<typeof BatchMarkersBody>;
-export const BatchMarkersResponse = z.object({ markers: z.array(Marker), rejected: z.array(Id), deleted: z.array(Id) });
+export const BatchMarkersResponse = z.object({
+  markers: z.array(Marker),
+  rejected: z.array(Id),
+  deleted: z.array(Id),
+});
 
 export const RenumberBody = z.object({ typeId: Id.nullable(), apply: z.boolean() });
 export const RenumberResponse = z.object({
   changes: z.array(
-    z.object({ id: Id, typeId: Id, floorId: Id, oldTag: z.string(), newTag: z.string(), oldNumber: z.number(), newNumber: z.number() }),
+    z.object({
+      id: Id,
+      typeId: Id,
+      floorId: Id,
+      oldTag: z.string(),
+      newTag: z.string(),
+      oldNumber: z.number(),
+      newNumber: z.number(),
+    }),
   ),
   applied: z.boolean(),
 });
@@ -245,7 +267,12 @@ export const ApiToken = z.object({
 });
 export const CreateTokenBody = z.object({ name: z.string().trim().min(1).max(80) });
 
-export const PresenceUser = z.object({ userId: Id, name: z.string(), initials: z.string(), clientId: z.string() });
+export const PresenceUser = z.object({
+  userId: Id,
+  name: z.string(),
+  initials: z.string(),
+  clientId: z.string(),
+});
 export type PresenceUser = z.infer<typeof PresenceUser>;
 
 /** SSE events on /api/projects/:id/events (R-51). `origin` is the X-Client-Id of the writer. */

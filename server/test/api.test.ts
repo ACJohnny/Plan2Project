@@ -51,11 +51,30 @@ describe('health and auth (R-6, R-10..R-14)', () => {
   });
 
   it('admin creates an editor and a viewer', async () => {
-    const e = await admin.post('/api/users', { email: 'ed@example.com', name: 'Ed Itor', role: 'editor', password: 'editor-pass' });
+    const e = await admin.post('/api/users', {
+      email: 'ed@example.com',
+      name: 'Ed Itor',
+      role: 'editor',
+      password: 'editor-pass',
+    });
     expect(e.status).toBe(200);
-    const v = await admin.post('/api/users', { email: 'vi@example.com', name: 'Vi Ewer', role: 'viewer', password: 'viewer-pass' });
+    const v = await admin.post('/api/users', {
+      email: 'vi@example.com',
+      name: 'Vi Ewer',
+      role: 'viewer',
+      password: 'viewer-pass',
+    });
     expect(v.status).toBe(200);
-    expect((await admin.post('/api/users', { email: 'ED@example.com', name: 'x', role: 'viewer', password: 'whatever1' })).status).toBe(409);
+    expect(
+      (
+        await admin.post('/api/users', {
+          email: 'ED@example.com',
+          name: 'x',
+          role: 'viewer',
+          password: 'whatever1',
+        })
+      ).status,
+    ).toBe(409);
     editor = await login(env.app, 'ed@example.com', 'editor-pass');
     viewer = await login(env.app, 'vi@example.com', 'viewer-pass');
   });
@@ -74,7 +93,12 @@ describe('health and auth (R-6, R-10..R-14)', () => {
       payload: { name: 'x' },
     });
     expect(r.statusCode).toBe(403);
-    const r2 = await env.app.inject({ method: 'POST', url: '/api/projects', headers: { cookie: editor.cookie }, payload: { name: 'x' } });
+    const r2 = await env.app.inject({
+      method: 'POST',
+      url: '/api/projects',
+      headers: { cookie: editor.cookie },
+      payload: { name: 'x' },
+    });
     expect(r2.statusCode).toBe(403);
   });
 
@@ -82,11 +106,18 @@ describe('health and auth (R-6, R-10..R-14)', () => {
     const r = await viewer.patch('/api/me', { name: 'Vi Ewer II', theme: 'dark' });
     expect(r.json.user.name).toBe('Vi Ewer II');
     expect(r.json.user.theme).toBe('dark');
-    expect((await viewer.patch('/api/me', { currentPassword: 'wrong', newPassword: 'newpass123' })).status).toBe(400);
+    expect(
+      (await viewer.patch('/api/me', { currentPassword: 'wrong', newPassword: 'newpass123' })).status,
+    ).toBe(400);
   });
 
   it('locks sign-in after 10 failures per email', async () => {
-    await admin.post('/api/users', { email: 'lock@example.com', name: 'Lock', role: 'viewer', password: 'right-pass' });
+    await admin.post('/api/users', {
+      email: 'lock@example.com',
+      name: 'Lock',
+      role: 'viewer',
+      password: 'right-pass',
+    });
     for (let i = 0; i < 10; i++) {
       const r = await env.app.inject({
         method: 'POST',
@@ -106,7 +137,12 @@ describe('health and auth (R-6, R-10..R-14)', () => {
   });
 
   it('deactivated users are signed out', async () => {
-    const u = await admin.post('/api/users', { email: 'gone@example.com', name: 'Gone', role: 'editor', password: 'gone-pass1' });
+    const u = await admin.post('/api/users', {
+      email: 'gone@example.com',
+      name: 'Gone',
+      role: 'editor',
+      password: 'gone-pass1',
+    });
     const c = await login(env.app, 'gone@example.com', 'gone-pass1');
     await admin.patch(`/api/users/${u.json.id}`, { active: false });
     expect((await c.get('/api/me')).status).toBe(401);
@@ -118,7 +154,11 @@ describe('projects, uploads and markers', () => {
   let floors: any[];
 
   it('creates and lists projects with search (R-15, R-16)', async () => {
-    const p = await editor.post('/api/projects', { name: 'Harless Residence', client: 'Harless', address: '1420 Hollow Creek Road' });
+    const p = await editor.post('/api/projects', {
+      name: 'Harless Residence',
+      client: 'Harless',
+      address: '1420 Hollow Creek Road',
+    });
     expect(p.status).toBe(200);
     projectId = p.json.id;
     await editor.post('/api/projects', { name: 'Other Job', client: 'Smith' });
@@ -128,7 +168,10 @@ describe('projects, uploads and markers', () => {
   });
 
   it('converts the 2-page PDF into two floors named from sheet titles (R-18, R-19)', async () => {
-    const r = await editor.upload(`/api/projects/${projectId}/uploads`, path.join(SAMPLES, 'harless-plans.pdf'));
+    const r = await editor.upload(
+      `/api/projects/${projectId}/uploads`,
+      path.join(SAMPLES, 'harless-plans.pdf'),
+    );
     expect(r.status).toBe(200);
     await env.app.ctx.jobs.idle();
     const up = (await editor.get(`/api/uploads/${r.json.id}`)).json;
@@ -161,8 +204,10 @@ describe('projects, uploads and markers', () => {
 
   it('numbers per type across floors (R-29)', async () => {
     const tags: number[] = [];
-    for (let i = 0; i < 3; i++) tags.push((await place(editor, floors[0].id, 'SPK', 0.1 * (i + 1), 0.2)).json.number);
-    for (let i = 0; i < 2; i++) tags.push((await place(editor, floors[1].id, 'SPK', 0.1 * (i + 1), 0.3)).json.number);
+    for (let i = 0; i < 3; i++)
+      tags.push((await place(editor, floors[0].id, 'SPK', 0.1 * (i + 1), 0.2)).json.number);
+    for (let i = 0; i < 2; i++)
+      tags.push((await place(editor, floors[1].id, 'SPK', 0.1 * (i + 1), 0.3)).json.number);
     expect(tags).toEqual([1, 2, 3, 4, 5]);
     expect((await place(editor, floors[0].id, 'TV')).json.number).toBe(1);
   });
@@ -190,7 +235,13 @@ describe('projects, uploads and markers', () => {
     expect(upd.json.room).toBe('Kitchen');
     expect((await viewer.del(`/api/markers/${id}`)).status).toBe(403);
     expect((await editor.del(`/api/markers/${id}`)).status).toBe(200);
-    const stale = await editor.put(`/api/markers/${id}`, { projectId, floorId: floors[0].id, typeId: typeId('KPD'), x: 0.5, y: 0.5 });
+    const stale = await editor.put(`/api/markers/${id}`, {
+      projectId,
+      floorId: floors[0].id,
+      typeId: typeId('KPD'),
+      x: 0.5,
+      y: 0.5,
+    });
     expect(stale.status).toBe(410);
     const restored = await editor.put(`/api/markers/${id}`, {
       projectId,
@@ -211,7 +262,10 @@ describe('projects, uploads and markers', () => {
   it('assigns the next number when the type changes (R-41)', async () => {
     const id = randomUUID();
     await place(editor, floors[0].id, 'TV', 0.6, 0.6, id);
-    const r = await editor.patch('/api/markers/batch', { projectId, updates: [{ id, typeId: typeId('SPK'), autoNumber: true }] });
+    const r = await editor.patch('/api/markers/batch', {
+      projectId,
+      updates: [{ id, typeId: typeId('SPK'), autoNumber: true }],
+    });
     expect(r.json.markers[0].number).toBe(6);
   });
 
@@ -228,10 +282,18 @@ describe('projects, uploads and markers', () => {
   });
 
   it('previews and applies renumbering (R-30)', async () => {
-    const preview = await editor.post(`/api/projects/${projectId}/renumber`, { typeId: typeId('SPK'), apply: false });
+    const preview = await editor.post(`/api/projects/${projectId}/renumber`, {
+      typeId: typeId('SPK'),
+      apply: false,
+    });
     expect(preview.json.applied).toBe(false);
     const ms = (await editor.get(`/api/projects/${projectId}/markers`)).json;
-    expect(ms.filter((m: any) => m.typeId === typeId('SPK')).map((m: any) => m.number).sort()).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(
+      ms
+        .filter((m: any) => m.typeId === typeId('SPK'))
+        .map((m: any) => m.number)
+        .sort(),
+    ).toEqual([1, 2, 3, 4, 5, 6]);
     const applied = await editor.post(`/api/projects/${projectId}/renumber`, { typeId: null, apply: true });
     expect(applied.json.applied).toBe(true);
     const cams = (await editor.get(`/api/projects/${projectId}/markers`)).json
@@ -253,12 +315,15 @@ describe('projects, uploads and markers', () => {
     const csv = await viewer.get(`/api/projects/${projectId}/export.csv`);
     expect(csv.status).toBe(200);
     expect(csv.body.charCodeAt(0)).toBe(0xfeff);
-    expect(csv.body.slice(1).split('\r\n')[0]).toBe('floor,sheet,tag,code,type,category,number,room,mount_height,notes,x,y');
-    expect(csv.headers['content-disposition']).toMatch(/harless-residence-device-plan-\d{4}-\d{2}-\d{2}\.csv/);
+    expect(csv.body.slice(1).split('\r\n')[0]).toBe(
+      'floor,sheet,tag,code,type,category,number,room,mount_height,notes,x,y',
+    );
+    expect(csv.headers['content-disposition']).toMatch(
+      /harless-residence-device-plan-\d{4}-\d{2}-\d{2}\.csv/,
+    );
     const txt = await viewer.get(`/api/projects/${projectId}/export.txt`);
     expect(txt.body).toContain('A2.1 1st Floor Plan');
     const pdf = await viewer.get(`/api/projects/${projectId}/export.pdf`);
-    if (pdf.status !== 200) console.log("PDFERR", pdf.body);
     expect(pdf.status).toBe(200);
     expect(pdf.raw.subarray(0, 5).toString()).toBe('%PDF-');
     const { PDFDocument } = await import('pdf-lib');
@@ -285,9 +350,13 @@ describe('projects, uploads and markers', () => {
     expect(r.json.applied).toBe(true);
     expect(r.json.floor.widthPx).toBe(2700);
     const after = (await editor.get(`/api/projects/${projectId}/markers?floorId=${floors[0].id}`)).json;
-    expect(after.map((m: any) => [m.id, m.x, m.y]).sort()).toEqual(before.map((m: any) => [m.id, m.x, m.y]).sort());
+    expect(after.map((m: any) => [m.id, m.x, m.y]).sort()).toEqual(
+      before.map((m: any) => [m.id, m.x, m.y]).sort(),
+    );
     const square = path.join(tmp, 'square.png');
-    await sharp({ create: { width: 1000, height: 1000, channels: 3, background: '#fff' } }).png().toFile(square);
+    await sharp({ create: { width: 1000, height: 1000, channels: 3, background: '#fff' } })
+      .png()
+      .toFile(square);
     const w = await editor.upload(`/api/floors/${floors[0].id}/sheet`, square);
     expect(w.json.applied).toBe(false);
     expect(w.json.aspectDiff).toBeGreaterThan(0.02);
@@ -298,7 +367,9 @@ describe('projects, uploads and markers', () => {
 
   it('renames, reorders and deletes floors (R-21)', async () => {
     await editor.patch(`/api/floors/${floors[1].id}`, { name: 'Upstairs', sheetNumber: 'A2.2' });
-    const order = await editor.post(`/api/projects/${projectId}/floors/reorder`, { floorIds: [floors[1].id, floors[0].id] });
+    const order = await editor.post(`/api/projects/${projectId}/floors/reorder`, {
+      floorIds: [floors[1].id, floors[0].id],
+    });
     expect(order.json.map((f: any) => f.name)[0]).toBe('Upstairs');
     const count = (await editor.get(`/api/floors/${floors[1].id}/marker-count`)).json.count;
     const d = await editor.del(`/api/floors/${floors[1].id}`);
@@ -306,10 +377,16 @@ describe('projects, uploads and markers', () => {
   });
 
   it('duplicates with and without markers (R-23)', async () => {
-    const withM = await editor.post(`/api/projects/${projectId}/duplicate`, { name: 'Harless copy', withMarkers: true });
+    const withM = await editor.post(`/api/projects/${projectId}/duplicate`, {
+      name: 'Harless copy',
+      withMarkers: true,
+    });
     expect(withM.json.floorCount).toBe(1);
     expect(withM.json.deviceCount).toBeGreaterThan(0);
-    const without = await editor.post(`/api/projects/${projectId}/duplicate`, { name: 'Harless template', withMarkers: false });
+    const without = await editor.post(`/api/projects/${projectId}/duplicate`, {
+      name: 'Harless template',
+      withMarkers: false,
+    });
     expect(without.json.deviceCount).toBe(0);
   });
 
@@ -328,10 +405,21 @@ describe('projects, uploads and markers', () => {
 describe('device library (R-24..R-26)', () => {
   it('validates codes and uniqueness', async () => {
     const cat = lib.categories[0].id;
-    expect((await admin.post('/api/device-library/types', { categoryId: cat, code: 'spk', name: 'x' })).status).toBe(400);
-    expect((await admin.post('/api/device-library/types', { categoryId: cat, code: 'SPK', name: 'x' })).status).toBe(409);
-    expect((await editor.post('/api/device-library/types', { categoryId: cat, code: 'AMP', name: 'Amp' })).status).toBe(403);
-    const t = await admin.post('/api/device-library/types', { categoryId: cat, code: 'AMP', name: 'Amplifier', defaultModel: 'XYZ-1' });
+    expect(
+      (await admin.post('/api/device-library/types', { categoryId: cat, code: 'spk', name: 'x' })).status,
+    ).toBe(400);
+    expect(
+      (await admin.post('/api/device-library/types', { categoryId: cat, code: 'SPK', name: 'x' })).status,
+    ).toBe(409);
+    expect(
+      (await editor.post('/api/device-library/types', { categoryId: cat, code: 'AMP', name: 'Amp' })).status,
+    ).toBe(403);
+    const t = await admin.post('/api/device-library/types', {
+      categoryId: cat,
+      code: 'AMP',
+      name: 'Amplifier',
+      defaultModel: 'XYZ-1',
+    });
     expect(t.status).toBe(200);
     expect((await admin.del(`/api/device-library/types/${t.json.id}`)).status).toBe(200);
   });
@@ -351,7 +439,12 @@ describe('API tokens', () => {
     const auth = { authorization: `Bearer ${t.json.token}` };
     const list = await env.app.inject({ url: '/api/projects', headers: auth });
     expect(list.statusCode).toBe(200);
-    const w = await env.app.inject({ method: 'POST', url: '/api/projects', headers: auth, payload: { name: 'x' } });
+    const w = await env.app.inject({
+      method: 'POST',
+      url: '/api/projects',
+      headers: auth,
+      payload: { name: 'x' },
+    });
     expect(w.statusCode).toBe(403);
     await admin.del(`/api/tokens/${t.json.id}`);
     expect((await env.app.inject({ url: '/api/projects', headers: auth })).statusCode).toBe(401);

@@ -13,7 +13,9 @@ import { loadLibrary } from './library';
 /** Outputs for every role (R-56..R-59). */
 export const exportRoutes: FastifyPluginAsyncZod = async (app) => {
   const { db, storage, cfg } = app.ctx;
-  const Q = z.object({ floors: z.string().optional().describe('Comma-separated floor ids to include (default all)') });
+  const Q = z.object({
+    floors: z.string().optional().describe('Comma-separated floor ids to include (default all)'),
+  });
   const P = z.object({ id: Id });
 
   async function load(projectId: string, floorFilter?: string) {
@@ -36,7 +38,14 @@ export const exportRoutes: FastifyPluginAsyncZod = async (app) => {
     const types = new Map<string, ExportType>(
       lib.types.map((t, i) => [
         t.id,
-        { id: t.id, code: t.code, name: t.name, category: cats.get(t.categoryId)?.name ?? '', color: cats.get(t.categoryId)?.color ?? '#6b7280', order: i },
+        {
+          id: t.id,
+          code: t.code,
+          name: t.name,
+          category: cats.get(t.categoryId)?.name ?? '',
+          color: cats.get(t.categoryId)?.color ?? '#6b7280',
+          order: i,
+        },
       ]),
     );
     const floorIds = new Set(fl.map((f) => f.id));
@@ -45,33 +54,45 @@ export const exportRoutes: FastifyPluginAsyncZod = async (app) => {
 
   const disposition = (name: string) => `attachment; filename="${name}"`;
 
-  app.get('/api/projects/:id/export.txt', { schema: { tags: ['exports'], params: P, querystring: Q }, preHandler: requireUser }, async (req, reply) => {
-    const d = await load(req.params.id, req.query.floors);
-    const txt = deviceListText(d.project, d.floors, d.types, d.markers);
-    reply.header('Content-Type', 'text/plain; charset=utf-8');
-    reply.header('Content-Disposition', disposition(exportFilename(d.project.name, 'txt')));
-    return txt;
-  });
+  app.get(
+    '/api/projects/:id/export.txt',
+    { schema: { tags: ['exports'], params: P, querystring: Q }, preHandler: requireUser },
+    async (req, reply) => {
+      const d = await load(req.params.id, req.query.floors);
+      const txt = deviceListText(d.project, d.floors, d.types, d.markers);
+      reply.header('Content-Type', 'text/plain; charset=utf-8');
+      reply.header('Content-Disposition', disposition(exportFilename(d.project.name, 'txt')));
+      return txt;
+    },
+  );
 
-  app.get('/api/projects/:id/export.csv', { schema: { tags: ['exports'], params: P, querystring: Q }, preHandler: requireUser }, async (req, reply) => {
-    const d = await load(req.params.id, req.query.floors);
-    reply.header('Content-Type', 'text/csv; charset=utf-8');
-    reply.header('Content-Disposition', disposition(exportFilename(d.project.name, 'csv')));
-    return deviceCsv(d.floors, d.types, d.markers);
-  });
+  app.get(
+    '/api/projects/:id/export.csv',
+    { schema: { tags: ['exports'], params: P, querystring: Q }, preHandler: requireUser },
+    async (req, reply) => {
+      const d = await load(req.params.id, req.query.floors);
+      reply.header('Content-Type', 'text/csv; charset=utf-8');
+      reply.header('Content-Disposition', disposition(exportFilename(d.project.name, 'csv')));
+      return deviceCsv(d.floors, d.types, d.markers);
+    },
+  );
 
-  app.get('/api/projects/:id/export.pdf', { schema: { tags: ['exports'], params: P, querystring: Q }, preHandler: requireUser }, async (req, reply) => {
-    const d = await load(req.params.id, req.query.floors);
-    const logo = path.join(cfg.STATIC_DIR, 'logo.png');
-    const bytes = await buildPdf(storage, {
-      project: d.project,
-      floors: d.floors,
-      types: d.types,
-      markers: d.markers,
-      logoPath: fs.existsSync(logo) ? logo : null,
-    });
-    reply.header('Content-Type', 'application/pdf');
-    reply.header('Content-Disposition', disposition(exportFilename(d.project.name, 'pdf')));
-    return reply.send(Buffer.from(bytes));
-  });
+  app.get(
+    '/api/projects/:id/export.pdf',
+    { schema: { tags: ['exports'], params: P, querystring: Q }, preHandler: requireUser },
+    async (req, reply) => {
+      const d = await load(req.params.id, req.query.floors);
+      const logo = path.join(cfg.STATIC_DIR, 'logo.png');
+      const bytes = await buildPdf(storage, {
+        project: d.project,
+        floors: d.floors,
+        types: d.types,
+        markers: d.markers,
+        logoPath: fs.existsSync(logo) ? logo : null,
+      });
+      reply.header('Content-Type', 'application/pdf');
+      reply.header('Content-Disposition', disposition(exportFilename(d.project.name, 'pdf')));
+      return reply.send(Buffer.from(bytes));
+    },
+  );
 };

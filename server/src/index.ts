@@ -16,7 +16,10 @@ async function main() {
       await runMigrations(db, cfg.MIGRATIONS_DIR);
       break;
     } catch (err: any) {
-      if (attempt >= 30 || !/ECONNREFUSED|ENOTFOUND|starting up|EAI_AGAIN/.test(String(err?.message ?? err) + (err?.code ?? '')))
+      if (
+        attempt >= 30 ||
+        !/ECONNREFUSED|ENOTFOUND|starting up|EAI_AGAIN/.test(String(err?.message ?? err) + (err?.code ?? ''))
+      )
         throw err;
       log.warn({ attempt }, 'database not ready, retrying');
       await new Promise((r) => setTimeout(r, 2000));
@@ -45,6 +48,8 @@ async function main() {
 
 main().catch((err) => {
   // JSON to stdout like the rest of the logs (R-9)
-  console.log(JSON.stringify({ level: 60, time: Date.now(), msg: 'startup failed', err: String(err?.stack ?? err) }));
+  console.log(
+    JSON.stringify({ level: 60, time: Date.now(), msg: 'startup failed', err: String(err?.stack ?? err) }),
+  );
   process.exit(1);
 });

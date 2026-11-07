@@ -127,12 +127,35 @@ describe('contrast (R-27)', () => {
 
 describe('text outputs (R-56, R-58, R-59)', () => {
   const types = new Map<string, ExportType>([
-    ['spk', { id: 'spk', code: 'SPK', name: 'In-ceiling speaker', category: 'Audio', color: '#1f6fd1', order: 0 }],
+    [
+      'spk',
+      { id: 'spk', code: 'SPK', name: 'In-ceiling speaker', category: 'Audio', color: '#1f6fd1', order: 0 },
+    ],
   ]);
   const floors = [{ id: 'f1', name: '1st Floor', sheetNumber: 'A2.1' }];
   const markers = [
-    { id: 'a', floorId: 'f1', typeId: 'spk', number: 2, x: 0.12345, y: 0.5, room: 'Kitchen', mountHeight: '', notes: 'pair, "L"' },
-    { id: 'b', floorId: 'f1', typeId: 'spk', number: 1, x: 0.1, y: 0.2, room: '', mountHeight: '', notes: '' },
+    {
+      id: 'a',
+      floorId: 'f1',
+      typeId: 'spk',
+      number: 2,
+      x: 0.12345,
+      y: 0.5,
+      room: 'Kitchen',
+      mountHeight: '',
+      notes: 'pair, "L"',
+    },
+    {
+      id: 'b',
+      floorId: 'f1',
+      typeId: 'spk',
+      number: 1,
+      x: 0.1,
+      y: 0.2,
+      room: '',
+      mountHeight: '',
+      notes: '',
+    },
   ];
   it('slugs filenames', () => {
     expect(slugify('Harless Residence #2!')).toBe('harless-residence-2');
@@ -160,10 +183,15 @@ describe('text outputs (R-56, R-58, R-59)', () => {
       sheetNumber: 'A2.1',
       title: '1st Floor Plan',
     });
-    expect(extractSheetTitle('SHEET TITLE\n2nd Floor Plan\nA2.2\n')).toEqual({ sheetNumber: 'A2.2', title: '2nd Floor Plan' });
+    expect(extractSheetTitle('SHEET TITLE\n2nd Floor Plan\nA2.2\n')).toEqual({
+      sheetNumber: 'A2.2',
+      title: '2nd Floor Plan',
+    });
     expect(extractSheetTitle('nothing useful here')).toBeNull();
     expect(
-      extractSheetTitle('BONUS ROOM\n22\'-0" x 16\'-0"\nSHEET TITLE\n2ND FLOOR PLAN\nN\nSHEET\nSCALE: 1/4" = 1\'-0"\nA2.2\n'),
+      extractSheetTitle(
+        'BONUS ROOM\n22\'-0" x 16\'-0"\nSHEET TITLE\n2ND FLOOR PLAN\nN\nSHEET\nSCALE: 1/4" = 1\'-0"\nA2.2\n',
+      ),
     ).toEqual({ sheetNumber: 'A2.2', title: '2nd Floor Plan' });
     expect(extractSheetTitle('SHEET TITLE\nCOVERED PATIO\n26\'-0"\n1ST FLOOR PLAN\nN\nSHEET\nA2.1')).toEqual({
       sheetNumber: 'A2.1',

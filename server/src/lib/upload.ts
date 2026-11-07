@@ -47,5 +47,11 @@ export async function receiveFile(req: FastifyRequest, storage: Storage, maxMb: 
 
 /** "A2.1 1st Floor Plan.png" → "A2.1 1st Floor Plan" */
 export function nameFromFilename(f: string): string {
-  return f.replace(/\.[a-z0-9]{2,4}$/i, '').replace(/[_]+/g, ' ').trim().slice(0, 120) || 'Floor';
+  return (
+    f
+      .replace(/\.[a-z0-9]{2,4}$/i, '')
+      .replace(/[_]+/g, ' ')
+      .trim()
+      .slice(0, 120) || 'Floor'
+  );
 }

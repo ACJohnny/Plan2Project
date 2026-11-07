@@ -64,7 +64,8 @@ export class Storage {
   }
 
   async init() {
-    for (const d of ['sheets', 'uploads', 'tmp']) await fs.mkdir(path.join(this.root, d), { recursive: true });
+    for (const d of ['sheets', 'uploads', 'tmp'])
+      await fs.mkdir(path.join(this.root, d), { recursive: true });
   }
 
   /**

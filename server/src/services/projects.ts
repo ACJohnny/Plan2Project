@@ -18,18 +18,26 @@ export async function listProjects(db: Q, opts: ListOpts = {}): Promise<Project[
   const view = opts.view ?? 'active';
   const where = [
     view === 'any' ? sql`true` : view === 'trash' ? sql`p.deleted_at is not null` : sql`p.deleted_at is null`,
-    view === 'archived' ? sql`p.archived_at is not null` : view === 'active' ? sql`p.archived_at is null` : sql`true`,
+    view === 'archived'
+      ? sql`p.archived_at is not null`
+      : view === 'active'
+        ? sql`p.archived_at is null`
+        : sql`true`,
   ];
   if (opts.q?.trim()) {
     const like = `%${opts.q.trim().replace(/[\\%_]/g, (c) => '\\' + c)}%`;
-    where.push(sql`(p.name ilike ${like} or p.client ilike ${like} or p.address ilike ${like} or p.job_number ilike ${like})`);
+    where.push(
+      sql`(p.name ilike ${like} or p.client ilike ${like} or p.address ilike ${like} or p.job_number ilike ${like})`,
+    );
   }
   if (opts.ids) {
     if (!opts.ids.length) return [];
-    where.push(sql`p.id in (${sql.join(
-      opts.ids.map((i) => sql`${i}::uuid`),
-      sql`, `,
-    )})`);
+    where.push(
+      sql`p.id in (${sql.join(
+        opts.ids.map((i) => sql`${i}::uuid`),
+        sql`, `,
+      )})`,
+    );
   }
   const res = await db.execute(sql`
     select p.id, p.name, p.client, p.address, p.job_number, p.notes, p.archived_at, p.deleted_at, p.created_by,
@@ -69,7 +77,12 @@ export async function getProjectDto(db: Q, id: string, allowDeleted = false): Pr
 
 /** Live (not deleted) project row or 404. */
 export async function requireProject(db: Q, id: string) {
-  const p = (await db.select().from(projects).where(and(eq(projects.id, id), isNull(projects.deletedAt))))[0];
+  const p = (
+    await db
+      .select()
+      .from(projects)
+      .where(and(eq(projects.id, id), isNull(projects.deletedAt)))
+  )[0];
   if (!p) throw new HttpError(404, 'Project not found');
   return p;
 }

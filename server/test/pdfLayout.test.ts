@@ -39,7 +39,10 @@ describe('PDF layout (R-57)', () => {
   });
 
   it('paginates rows and starts a new page when a row does not fit', () => {
-    expect(paginate([10, 10, 10, 10, 10], 25, 30)).toEqual([[0, 1], [2, 3, 4]]);
+    expect(paginate([10, 10, 10, 10, 10], 25, 30)).toEqual([
+      [0, 1],
+      [2, 3, 4],
+    ]);
     expect(paginate([50], 25, 30)).toEqual([[0]]); // an oversized row still gets placed
   });
 
@@ -50,6 +53,9 @@ describe('PDF layout (R-57)', () => {
   });
 
   it('counts by type for the legend', () => {
-    expect(Object.fromEntries(countByType([{ typeId: 'a' }, { typeId: 'b' }, { typeId: 'a' }]))).toEqual({ a: 2, b: 1 });
+    expect(Object.fromEntries(countByType([{ typeId: 'a' }, { typeId: 'b' }, { typeId: 'a' }]))).toEqual({
+      a: 2,
+      b: 1,
+    });
   });
 });

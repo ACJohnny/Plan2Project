@@ -14,7 +14,10 @@ export function formatTag(code: string, number: number): string {
 }
 
 /** Next number = highest existing number for that type across the project + 1. */
-export function nextNumber(markers: Iterable<Pick<NumberedMarker, 'typeId' | 'number'>>, typeId: string): number {
+export function nextNumber(
+  markers: Iterable<Pick<NumberedMarker, 'typeId' | 'number'>>,
+  typeId: string,
+): number {
   let max = 0;
   for (const m of markers) if (m.typeId === typeId && m.number > max) max = m.number;
   return max + 1;

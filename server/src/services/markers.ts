@@ -21,8 +21,14 @@ export async function nextNumberDb(tx: Tx, projectId: string, typeId: string): P
 }
 
 async function checkFloor(tx: Tx, projectId: string, floorId: string) {
-  const f = (await tx.select({ id: floors.id, projectId: floors.projectId, deletedAt: floors.deletedAt }).from(floors).where(eq(floors.id, floorId)))[0];
-  if (!f || f.projectId !== projectId || f.deletedAt) throw new HttpError(400, 'Floor not found in this project');
+  const f = (
+    await tx
+      .select({ id: floors.id, projectId: floors.projectId, deletedAt: floors.deletedAt })
+      .from(floors)
+      .where(eq(floors.id, floorId))
+  )[0];
+  if (!f || f.projectId !== projectId || f.deletedAt)
+    throw new HttpError(400, 'Floor not found in this project');
 }
 
 async function checkType(tx: Tx, typeId: string) {
@@ -66,15 +72,23 @@ export async function logActivity(
   before: unknown,
   after: unknown,
 ) {
-  await tx.insert(activity).values({ projectId, userId, markerId, action, before: before ?? null, after: after ?? null });
+  await tx
+    .insert(activity)
+    .values({ projectId, userId, markerId, action, before: before ?? null, after: after ?? null });
 }
 
 export class Rejected extends Error {}
 
 /** Create or update by client UUID (R-49, R-52). Must run inside a transaction holding lockProject. */
-export async function upsertMarker(tx: Tx, userId: string, id: string, body: PutMarkerBody): Promise<MarkerRow> {
+export async function upsertMarker(
+  tx: Tx,
+  userId: string,
+  id: string,
+  body: PutMarkerBody,
+): Promise<MarkerRow> {
   const existing = (await tx.select().from(markers).where(eq(markers.id, id)))[0];
-  if (existing && existing.projectId !== body.projectId) throw new HttpError(400, 'Marker belongs to another project');
+  if (existing && existing.projectId !== body.projectId)
+    throw new HttpError(400, 'Marker belongs to another project');
   if (existing?.deletedAt && !body.restore) throw new Rejected('Marker was deleted');
   await checkFloor(tx, body.projectId, body.floorId);
   if (!existing || existing.typeId !== body.typeId) await checkType(tx, body.typeId);
@@ -107,18 +121,34 @@ export async function upsertMarker(tx: Tx, userId: string, id: string, body: Put
       .returning();
   }
   const action = classify(existing, row);
-  await logActivity(tx, body.projectId, userId, id, action, existing?.deletedAt ? null : snapshot(existing), snapshot(row));
+  await logActivity(
+    tx,
+    body.projectId,
+    userId,
+    id,
+    action,
+    existing?.deletedAt ? null : snapshot(existing),
+    snapshot(row),
+  );
   return row;
 }
 
-export async function patchMarker(tx: Tx, userId: string, projectId: string, p: MarkerPatch): Promise<MarkerRow> {
+export async function patchMarker(
+  tx: Tx,
+  userId: string,
+  projectId: string,
+  p: MarkerPatch,
+): Promise<MarkerRow> {
   const existing = (await tx.select().from(markers).where(eq(markers.id, p.id)))[0];
-  if (!existing || existing.deletedAt || existing.projectId !== projectId) throw new Rejected('Marker not found');
+  if (!existing || existing.deletedAt || existing.projectId !== projectId)
+    throw new Rejected('Marker not found');
   return upsertMarker(tx, userId, p.id, {
     projectId,
     floorId: p.floorId ?? existing.floorId,
     typeId: p.typeId ?? existing.typeId,
-    number: p.autoNumber ? undefined : (p.number ?? (p.typeId && p.typeId !== existing.typeId ? undefined : existing.number)),
+    number: p.autoNumber
+      ? undefined
+      : (p.number ?? (p.typeId && p.typeId !== existing.typeId ? undefined : existing.number)),
     autoNumber: p.autoNumber,
     x: p.x ?? existing.x,
     y: p.y ?? existing.y,
@@ -128,8 +158,18 @@ export async function patchMarker(tx: Tx, userId: string, projectId: string, p: 
   });
 }
 
-export async function softDeleteMarker(tx: Tx, userId: string, id: string, projectId?: string): Promise<MarkerRow | null> {
-  const existing = (await tx.select().from(markers).where(and(eq(markers.id, id), isNull(markers.deletedAt))))[0];
+export async function softDeleteMarker(
+  tx: Tx,
+  userId: string,
+  id: string,
+  projectId?: string,
+): Promise<MarkerRow | null> {
+  const existing = (
+    await tx
+      .select()
+      .from(markers)
+      .where(and(eq(markers.id, id), isNull(markers.deletedAt)))
+  )[0];
   if (!existing || (projectId && existing.projectId !== projectId)) return null;
   const [row] = await tx
     .update(markers)

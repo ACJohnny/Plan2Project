@@ -29,7 +29,10 @@ export const markerRoutes: FastifyPluginAsyncZod = async (app) => {
       await requireProject(db, req.params.id);
       const conds = [eq(markers.projectId, req.params.id), isNull(markers.deletedAt)];
       if (req.query.floorId) conds.push(eq(markers.floorId, req.query.floorId));
-      const rows = await db.select().from(markers).where(and(...conds));
+      const rows = await db
+        .select()
+        .from(markers)
+        .where(and(...conds));
       return rows.map(markerDto);
     },
   );
@@ -37,7 +40,10 @@ export const markerRoutes: FastifyPluginAsyncZod = async (app) => {
   // Upsert by client UUID (R-49). 410 when writing to a deleted marker (R-52) unless restore=true (undo, R-37).
   app.put(
     '/api/markers/:id',
-    { schema: { tags: ['markers'], params: P, body: PutMarkerBody, response: { 200: Marker } }, preHandler: editor },
+    {
+      schema: { tags: ['markers'], params: P, body: PutMarkerBody, response: { 200: Marker } },
+      preHandler: editor,
+    },
     async (req) => {
       await requireProject(db, req.body.projectId);
       let row;
@@ -61,7 +67,10 @@ export const markerRoutes: FastifyPluginAsyncZod = async (app) => {
   // Multi-marker moves, edits, pastes and deletes in one transaction (R-35, R-38, R-45)
   app.patch(
     '/api/markers/batch',
-    { schema: { tags: ['markers'], body: BatchMarkersBody, response: { 200: BatchMarkersResponse } }, preHandler: editor },
+    {
+      schema: { tags: ['markers'], body: BatchMarkersBody, response: { 200: BatchMarkersResponse } },
+      preHandler: editor,
+    },
     async (req) => {
       const { projectId, updates, creates, deletes } = req.body;
       await requireProject(db, projectId);
@@ -95,19 +104,24 @@ export const markerRoutes: FastifyPluginAsyncZod = async (app) => {
       });
       const dtos = result.out.map(markerDto);
       if (dtos.length) hub.publish(projectId, { type: 'marker.upsert', origin: req.clientId, markers: dtos });
-      if (result.deleted.length) hub.publish(projectId, { type: 'marker.delete', origin: req.clientId, ids: result.deleted });
+      if (result.deleted.length)
+        hub.publish(projectId, { type: 'marker.delete', origin: req.clientId, ids: result.deleted });
       return { markers: dtos, rejected, deleted: result.deleted };
     },
   );
 
-  app.delete('/api/markers/:id', { schema: { tags: ['markers'], params: P }, preHandler: editor }, async (req) => {
-    const row = await db.transaction(async (tx) => {
-      const r = await softDeleteMarker(tx, req.user!.id, req.params.id);
-      if (r) await touchProject(tx, r.projectId, req.user!.id);
-      return r;
-    });
-    if (!row) return { ok: true, alreadyDeleted: true };
-    hub.publish(row.projectId, { type: 'marker.delete', origin: req.clientId, ids: [row.id] });
-    return { ok: true };
-  });
+  app.delete(
+    '/api/markers/:id',
+    { schema: { tags: ['markers'], params: P }, preHandler: editor },
+    async (req) => {
+      const row = await db.transaction(async (tx) => {
+        const r = await softDeleteMarker(tx, req.user!.id, req.params.id);
+        if (r) await touchProject(tx, r.projectId, req.user!.id);
+        return r;
+      });
+      if (!row) return { ok: true, alreadyDeleted: true };
+      hub.publish(row.projectId, { type: 'marker.delete', origin: req.clientId, ids: [row.id] });
+      return { ok: true };
+    },
+  );
 };
