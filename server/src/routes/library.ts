@@ -10,6 +10,7 @@ import {
   Library,
   ReorderBody,
   SEED_LIBRARY,
+  SEED_TYPE_COVERAGE,
   SEED_TYPE_WIRES,
   SEED_WIRE_TYPES,
   UpdateCategoryBody,
@@ -34,9 +35,15 @@ export async function seedLibrary(db: DB) {
         .insert(deviceCategories)
         .values({ name: c.name, colorHex: c.color, sortOrder: ci })
         .returning();
-      await tx
-        .insert(deviceTypes)
-        .values(c.types.map((t, ti) => ({ categoryId: cat.id, code: t.code, name: t.name, sortOrder: ti })));
+      await tx.insert(deviceTypes).values(
+        c.types.map((t, ti) => ({
+          categoryId: cat.id,
+          code: t.code,
+          name: t.name,
+          sortOrder: ti,
+          coverage: SEED_TYPE_COVERAGE[t.code] ?? null,
+        })),
+      );
     }
   });
   return true;
@@ -117,6 +124,7 @@ export async function loadLibrary(db: DB): Promise<Library> {
       retiredAt: t.retiredAt?.toISOString() ?? null,
       inUse: used.get(t.id) ?? 0,
       wires: wiresOf.get(t.id) ?? [],
+      coverage: t.coverage ?? null,
     })),
   };
 }

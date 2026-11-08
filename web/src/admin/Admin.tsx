@@ -6,6 +6,7 @@ import {
   type DeviceType,
   type Library,
   type Role,
+  type TypeCoverage,
   type User,
   type ZoneName,
 } from '@sixpoint/shared';
@@ -369,6 +370,13 @@ function LibraryAdmin() {
                           .join(', ')}
                       </span>
                     )}
+                    {t.coverage && (
+                      <span className="muted small">
+                        {' '}
+                        · coverage {t.coverage.angleDeg}° {t.coverage.rangeFt} ft
+                        {t.coverage.defaultOn ? '' : ' (off by default)'}
+                      </span>
+                    )}
                     {t.retiredAt && <span className="pill">Retired</span>}
                   </span>
                   <span className="muted small mono">{t.inUse} in use</span>
@@ -534,6 +542,7 @@ function TypeDialog({
     defaultNotes: type?.defaultNotes ?? '',
   });
   const [wires, setWires] = useState(type?.wires ?? []);
+  const [cov, setCov] = useState<TypeCoverage | null>(type?.coverage ?? null);
   const codeOk = /^[A-Z]{1,6}$/.test(f.code);
   const dup = lib.types.find((t) => t.code === f.code && t.id !== type?.id);
   return (
@@ -544,9 +553,10 @@ function TypeDialog({
           e.preventDefault();
           try {
             const clean = wires.filter((w) => w.wireTypeId && w.count > 0);
-            if (type) await api.patch(`/api/device-library/types/${type.id}`, { ...f, wires: clean });
+            if (type)
+              await api.patch(`/api/device-library/types/${type.id}`, { ...f, wires: clean, coverage: cov });
             else {
-              const t = await api.post<DeviceType>('/api/device-library/types', f);
+              const t = await api.post<DeviceType>('/api/device-library/types', { ...f, coverage: cov });
               if (clean.length) await api.patch(`/api/device-library/types/${t.id}`, { wires: clean });
             }
             onDone();
@@ -653,6 +663,57 @@ function TypeDialog({
           >
             + Add wire
           </button>
+        </fieldset>
+        <fieldset className="span-2 wires-edit">
+          <legend>Coverage area</legend>
+          <label className="check-row">
+            <input
+              type="checkbox"
+              checked={!!cov}
+              onChange={(e) =>
+                setCov(e.target.checked ? { defaultOn: true, rangeFt: 30, angleDeg: 90 } : null)
+              }
+            />{' '}
+            This device has a coverage area (camera field of view, WAP range…)
+          </label>
+          {cov && (
+            <>
+              <label className="check-row">
+                <input
+                  type="checkbox"
+                  checked={cov.defaultOn}
+                  onChange={(e) => setCov({ ...cov, defaultOn: e.target.checked })}
+                />{' '}
+                Shown by default on new and existing devices (each device can turn it off)
+              </label>
+              <div className="coverage-edit two">
+                <label className="field">
+                  <span>Range (ft)</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={1000}
+                    step={0.5}
+                    required
+                    value={cov.rangeFt}
+                    onChange={(e) => setCov({ ...cov, rangeFt: Number(e.target.value) })}
+                  />
+                </label>
+                <label className="field">
+                  <span>Angle (°)</span>
+                  <input
+                    type="number"
+                    min={5}
+                    max={360}
+                    required
+                    value={cov.angleDeg}
+                    onChange={(e) => setCov({ ...cov, angleDeg: Number(e.target.value) })}
+                  />
+                  <span className="muted small">360 = full circle</span>
+                </label>
+              </div>
+            </>
+          )}
         </fieldset>
         <div className="form-actions span-2">
           <button type="button" className="btn" onClick={onClose}>

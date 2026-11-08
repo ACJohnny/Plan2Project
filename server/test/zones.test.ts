@@ -90,6 +90,44 @@ describe('zone names', () => {
   });
 });
 
+describe('coverage areas', () => {
+  it('seeds coverage on cameras and WAPs; admins set it on any type', async () => {
+    const cam = lib.types.find((t: any) => t.code === 'CAM');
+    expect(cam.coverage).toEqual({ defaultOn: true, rangeFt: 40, angleDeg: 90 });
+    expect(lib.types.find((t: any) => t.code === 'TV').coverage).toBeNull();
+    const r = await admin.patch(`/api/device-library/types/${typeId('SEN')}`, {
+      coverage: { defaultOn: true, rangeFt: 20, angleDeg: 110 },
+    });
+    expect(r.json.coverage).toEqual({ defaultOn: true, rangeFt: 20, angleDeg: 110 });
+    const off = await admin.patch(`/api/device-library/types/${typeId('SEN')}`, { coverage: null });
+    expect(off.json.coverage).toBeNull();
+  });
+
+  it('stores per-device overrides, including turning coverage off', async () => {
+    const id = randomUUID();
+    await admin.put(`/api/markers/${id}`, {
+      projectId,
+      floorId: floors[0].id,
+      typeId: typeId('CAM'),
+      x: 0.3,
+      y: 0.3,
+      coverage: { dirDeg: 135, rangeFt: 25 },
+    });
+    let m = (await admin.get(`/api/projects/${projectId}/markers`)).json.find((x: any) => x.id === id);
+    expect(m.coverage).toEqual({ dirDeg: 135, rangeFt: 25 });
+    const r = await admin.patch('/api/markers/batch', {
+      projectId,
+      updates: [{ id, coverage: { on: false } }],
+    });
+    expect(r.json.markers[0].coverage).toEqual({ on: false });
+    // other edits leave coverage alone
+    await admin.patch('/api/markers/batch', { projectId, updates: [{ id, room: 'Porch' }] });
+    m = (await admin.get(`/api/projects/${projectId}/markers`)).json.find((x: any) => x.id === id);
+    expect(m.coverage).toEqual({ on: false });
+    await admin.del(`/api/markers/${id}`);
+  });
+});
+
 describe('zones, scale and runs', () => {
   let closetId: string;
   let closet2Id: string;

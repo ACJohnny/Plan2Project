@@ -156,6 +156,22 @@ export const PickPagesBody = z.object({ keepPages: z.array(z.number().int().min(
 export const HexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/);
 export const Code = z.string().regex(/^[A-Z]{1,6}$/, 'Code must be 1–6 uppercase letters');
 
+/** Coverage defaults for a device type (e.g. a camera's field of view, a WAP's range). */
+export const TypeCoverage = z.object({
+  defaultOn: z.boolean(),
+  rangeFt: z.number().min(1).max(1000),
+  angleDeg: z.number().min(5).max(360),
+});
+export type TypeCoverage = z.infer<typeof TypeCoverage>;
+/** Per-device coverage overrides; unset fields follow the type. dirDeg is clockwise from up. */
+export const MarkerCoverage = z.object({
+  on: z.boolean().optional(),
+  rangeFt: z.number().min(1).max(1000).optional(),
+  angleDeg: z.number().min(5).max(360).optional(),
+  dirDeg: z.number().min(-720).max(720).optional(),
+});
+export type MarkerCoverage = z.infer<typeof MarkerCoverage>;
+
 export const Category = z.object({ id: Id, name: z.string(), color: HexColor, sortOrder: z.number() });
 export type Category = z.infer<typeof Category>;
 export const DeviceType = z.object({
@@ -169,6 +185,8 @@ export const DeviceType = z.object({
   retiredAt: ts.nullable(),
   inUse: z.number(),
   wires: z.array(z.object({ wireTypeId: Id, count: z.number().int().min(1).max(20) })),
+  /** null = this type has no coverage area */
+  coverage: TypeCoverage.nullable(),
 });
 export type DeviceType = z.infer<typeof DeviceType>;
 export const WireType = z.object({ id: Id, name: z.string(), sortOrder: z.number(), inUse: z.number() });
@@ -194,6 +212,7 @@ export const CreateTypeBody = z.object({
   name: z.string().trim().min(1).max(80),
   defaultModel: z.string().max(200).default(''),
   defaultNotes: z.string().max(2000).default(''),
+  coverage: TypeCoverage.nullable().optional(),
 });
 export const UpdateTypeBody = CreateTypeBody.partial().extend({
   sortOrder: z.number().int().optional(),
@@ -221,6 +240,8 @@ export const Marker = z.object({
   notes: z.string(),
   /** equipment closet override; null = the project's first closet */
   closetZoneId: Id.nullable(),
+  /** coverage overrides; null = all type defaults */
+  coverage: MarkerCoverage.nullable(),
   createdBy: Id.nullable(),
   updatedBy: Id.nullable(),
   updatedAt: ts,
@@ -260,6 +281,7 @@ export const MarkerFields = z.object({
   mountHeight: z.string().max(80).default(''),
   notes: z.string().max(5000).default(''),
   closetZoneId: Id.nullable().optional(),
+  coverage: MarkerCoverage.nullable().optional(),
 });
 
 /** PUT /api/markers/:id — upsert by client UUID. Omit `number` (or set autoNumber) to have the server assign it. */

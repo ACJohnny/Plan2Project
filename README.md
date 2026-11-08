@@ -99,6 +99,13 @@ Every change saves as you go. The toolbar shows Saved / Saving… / Offline, cha
 - **Audio zones:** a room with audio devices gets an audio format (Stereo, 5.0, 5.1, 7.1).
 - **Summary:** Project menu → **Summary** lists audio zones by format and cable totals per wire type. It also lists devices whose runs can't be measured yet, and why. The same summary is the last page of the PDF. The CSV adds `zone`, `closet`, `wires` and `run_ft` columns. `GET /api/projects/:id/summary` returns it as JSON.
 
+## Wire paths and coverage areas
+
+- **Wire paths:** tick **Wire paths** in the toolbar to draw each device's right-angle run to its equipment closet: device → riser on other floors, and a dark trunk from the riser to the closet. The selected device's path is solid; the rest are dashed. The setting is remembered per browser.
+- **Coverage areas:** device types can have a coverage area, such as a camera's field of view or a WAP's range. Set it in Admin → Device library → Edit type → **Coverage area**: on by default or not, range (ft) and angle (°, 360 = full circle). Cameras, WAPs, video doorbells and sensors are seeded; the sensor is off by default.
+- **Per device:** the side panel's **Coverage area** checkbox turns it on or off for that device. Range, angle and facing can be typed there. With one device selected, drag the bracket handles at the ends of the arc to change angle and range, and the round ✥ handle to rotate. Edits go into undo history. **Reset to defaults** drops the device's overrides.
+- Coverage needs the floor's scale to draw. **Coverage** in the toolbar hides or shows all areas. Coverage areas also print on the PDF floor pages.
+
 ## API
 
 The JSON REST API lives under `/api`, with interactive OpenAPI docs at **`/api/docs`** (raw spec at `/api/docs/json`). Scripts can read data with an admin-created read-only token (Admin → API tokens):

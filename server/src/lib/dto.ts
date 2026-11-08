@@ -52,6 +52,7 @@ export function markerDto(m: typeof s.markers.$inferSelect): Marker {
     mountHeight: m.mountHeight,
     notes: m.notes,
     closetZoneId: m.closetZoneId,
+    coverage: m.coverage ?? null,
     createdBy: m.createdBy,
     updatedBy: m.updatedBy,
     updatedAt: m.updatedAt.toISOString(),

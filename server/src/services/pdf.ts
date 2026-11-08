@@ -2,11 +2,24 @@ import fs from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import fontkit from '@pdf-lib/fontkit';
-import { PDFDocument, rgb, type PDFFont, type PDFImage, type PDFPage } from 'pdf-lib';
+import {
+  clip,
+  endPath,
+  PDFDocument,
+  popGraphicsState,
+  pushGraphicsState,
+  rectangle,
+  rgb,
+  type PDFFont,
+  type PDFImage,
+  type PDFPage,
+} from 'pdf-lib';
 import sharp from 'sharp';
 import {
   AUDIO_FORMAT_LABEL,
   centroid,
+  sectorPath,
+  type ResolvedCoverage,
   isoDate,
   sortForSchedule,
   SPECTRUM,
@@ -83,7 +96,10 @@ export interface PdfInput {
     heightPx: number;
     riserX?: number | null;
     riserY?: number | null;
+    ftPerPx?: number | null;
   }[];
+  /** effective coverage per marker id (only devices whose coverage is on) */
+  coverage?: Map<string, ResolvedCoverage>;
   types: Map<string, ExportType>;
   markers: ExportMarker[];
   zones?: {
@@ -219,6 +235,36 @@ export async function buildPdf(storage: Storage, input: PdfInput): Promise<Uint8
       const label = closet ? `EQ · ${z.name}` : z.name;
       const lw = w(label, F.head, 7.5);
       text(page, label, pt.x - lw / 2, pt.y + 7, 7.5, F.head, closet ? ACCENT : PLUM);
+    }
+    // coverage areas (camera field of view, WAP range…) under the markers
+    if (floor.ftPerPx && input.coverage?.size) {
+      const ptPerSheetPx = rect.w / floor.widthPx;
+      // keep the areas inside the sheet
+      page.pushOperators(pushGraphicsState(), rectangle(rect.x, rect.y, rect.w, rect.h), clip(), endPath());
+      for (const m of ms) {
+        const c = input.coverage.get(m.id);
+        if (!c) continue;
+        const color = hex(input.types.get(m.typeId)?.color ?? '#6b7280');
+        page.drawSvgPath(
+          sectorPath(
+            m.x * rect.w,
+            m.y * rect.h,
+            (c.rangeFt / floor.ftPerPx) * ptPerSheetPx,
+            c.angleDeg,
+            c.dirDeg,
+          ),
+          {
+            x: rect.x,
+            y: rect.y + rect.h,
+            color,
+            opacity: 0.18,
+            borderColor: color,
+            borderWidth: 0.8,
+            borderOpacity: 0.8,
+          },
+        );
+      }
+      page.pushOperators(popGraphicsState());
     }
     if (floor.riserX != null && floor.riserY != null) {
       const rp = markerPoint(rect, floor.riserX, floor.riserY);

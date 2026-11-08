@@ -17,7 +17,7 @@ import {
 } from './Dialogs';
 import { planCtl } from './planCtl';
 import { SummaryDialog } from './Summary';
-import { getState, setState, useEditor } from './store';
+import { getState, setState, setViewPref, useEditor } from './store';
 import { useUploads } from './Uploads';
 
 /** Top toolbar (R-60): logo, project, floor tabs, zoom, presence, save status, menu. */
@@ -45,6 +45,7 @@ export function Toolbar() {
           </h1>
         </div>
         <FloorTabs onSettings={() => setDialog('floor')} />
+        <ViewToggles />
         <ZoomControls />
         <Presence />
         <SaveStatus />
@@ -203,6 +204,28 @@ function FloorTabs({ onSettings }: { onSettings: () => void }) {
         ))}
       </div>
     </nav>
+  );
+}
+
+/** Show / hide wire paths and coverage areas on the plan (remembered per browser). */
+function ViewToggles() {
+  const wires = useEditor((s) => s.showWires);
+  const cov = useEditor((s) => s.showCoverage);
+  return (
+    <div className="view-toggles" role="group" aria-label="Show on plan">
+      <label title="Draw right-angle wire paths to the equipment closet">
+        <input type="checkbox" checked={wires} onChange={(e) => setViewPref('showWires', e.target.checked)} />
+        Wire paths
+      </label>
+      <label title="Draw coverage areas (cameras, WAPs…)">
+        <input
+          type="checkbox"
+          checked={cov}
+          onChange={(e) => setViewPref('showCoverage', e.target.checked)}
+        />
+        Coverage
+      </label>
+    </div>
   );
 }
 

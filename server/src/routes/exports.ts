@@ -9,6 +9,8 @@ import {
   exportFilename,
   Id,
   type CsvExtras,
+  resolveCoverage,
+  type ResolvedCoverage,
 } from '@sixpoint/shared';
 import { requireUser } from '../lib/auth';
 import { buildPdf } from '../services/pdf';
@@ -117,6 +119,7 @@ export const exportRoutes: FastifyPluginAsyncZod = async (app) => {
         types: d.types,
         markers: d.markers,
         zones: d.zones,
+        coverage: coverageMap(d),
         summary: d.summary,
         extraWireFt: d.project.extraWireFt,
         logoPath: fs.existsSync(logo) ? logo : null,
@@ -165,3 +168,14 @@ export const exportRoutes: FastifyPluginAsyncZod = async (app) => {
     },
   );
 };
+
+/** Effective coverage for every device whose coverage is on. */
+function coverageMap(d: Awaited<ReturnType<typeof loadProjectData>>): Map<string, ResolvedCoverage> {
+  const types = new Map(d.lib.types.map((t) => [t.id, t]));
+  const out = new Map<string, ResolvedCoverage>();
+  for (const m of d.markers) {
+    const c = resolveCoverage(types.get(m.typeId), m);
+    if (c) out.set(m.id, c);
+  }
+  return out;
+}

@@ -16,7 +16,15 @@ import {
   type View,
   type Zone,
 } from '@sixpoint/shared';
-import { commitMove, createMarkers, duplicateMarkers, placeMarker, setPositionsLocal } from './ops';
+import {
+  commitMarkerEdit,
+  commitMove,
+  createMarkers,
+  duplicateMarkers,
+  placeMarker,
+  setPositionsLocal,
+} from './ops';
+import { CoverageHandles, CoverageShapes, dragCoverage, WirePaths, type CoverageHandle } from './Overlays';
 import { planCtl } from './planCtl';
 import { colorOf, getState, setState, tagOf, typeOf, useEditor } from './store';
 import { UploadDropZone } from './Uploads';
@@ -40,6 +48,7 @@ type Gesture =
     }
   | { kind: 'zoneRect'; id: number; sx: number; sy: number; x: number; y: number }
   | { kind: 'vertex'; id: number; zone: Zone; index: number }
+  | { kind: 'coverage'; id: number; before: Marker; handle: CoverageHandle }
   | { kind: 'pan'; id: number; lx: number; ly: number }
   | {
       kind: 'drag';
@@ -134,8 +143,11 @@ export function Plan() {
   const apply = () => {
     const v = viewRef.current;
     if (!v) return;
-    if (sheetRef.current)
+    if (sheetRef.current) {
       sheetRef.current.style.transform = `translate3d(${v.tx}px, ${v.ty}px, 0) scale(${v.scale})`;
+      // one screen pixel in sheet units, so SVG strokes keep a constant on-screen width
+      sheetRef.current.style.setProperty('--px', String(1 / v.scale));
+    }
     const l = layerRef.current;
     if (l) {
       l.style.setProperty('--tx', String(v.tx));
@@ -297,6 +309,17 @@ export function Plan() {
       gesture.current = { kind: 'pan', id: e.pointerId, lx: p.x, ly: p.y };
       return;
     }
+    const cEl = (e.target as HTMLElement).closest<HTMLElement>('[data-cov]');
+    const st = getState();
+    if (cEl && st.selection.length === 1 && st.markers[st.selection[0]] && st.canEdit) {
+      gesture.current = {
+        kind: 'coverage',
+        id: e.pointerId,
+        before: st.markers[st.selection[0]],
+        handle: cEl.dataset.cov as CoverageHandle,
+      };
+      return;
+    }
     gesture.current = {
       kind: 'pending',
       id: e.pointerId,
@@ -398,6 +421,8 @@ export function Plan() {
       const pos = new Map<string, { x: number; y: number }>();
       for (const [id, st] of cur.start) pos.set(id, { x: clamp(st.x + dx, 0, 1), y: clamp(st.y + dy, 0, 1) });
       setPositionsLocal(pos);
+    } else if (cur.kind === 'coverage') {
+      dragCoverage(cur.before, cur.handle, screenToFraction(viewRef.current!, sheet, p.x, p.y), floor!);
     } else if (cur.kind === 'vertex') {
       const f = screenToFraction(viewRef.current!, sheet, p.x, p.y);
       const pts = cur.zone.points.map((q, i) =>
@@ -438,6 +463,7 @@ export function Plan() {
     if (e.type === 'pointercancel') {
       if (g.kind === 'drag') setPositionsLocal(new Map(g.before.map((m) => [m.id, { x: m.x, y: m.y }])));
       if (g.kind === 'vertex') setState({ zones: { ...getState().zones, [g.zone.id]: g.zone } });
+      if (g.kind === 'coverage') setState({ markers: { ...getState().markers, [g.before.id]: g.before } });
       setMarquee(null);
       return;
     }
@@ -485,6 +511,8 @@ export function Plan() {
         const z = inSheet(f) ? zoneAt(zones, floor!.id, f.x, f.y) : null;
         setState({ selection: [], selectedZone: z?.id ?? null });
       } else if (!g.shift) setState({ selection: [] });
+    } else if (g.kind === 'coverage') {
+      commitMarkerEdit(g.before, 'Coverage of');
     } else if (g.kind === 'vertex') {
       const z = getState().zones[g.zone.id];
       if (z) saveZone(z);
@@ -561,6 +589,8 @@ export function Plan() {
                 points={z.points.map(([x, y]) => `${x * floor.widthPx},${y * floor.heightPx}`).join(' ')}
               />
             ))}
+            <CoverageShapes floor={floor} />
+            <WirePaths floor={floor} />
             {draft.length > 0 && (
               <polyline
                 className="zone-draft"
@@ -631,6 +661,7 @@ export function Plan() {
                 style={{ '--x': x * floor.widthPx, '--y': y * floor.heightPx } as React.CSSProperties}
               />
             ))}
+          <CoverageHandles floor={floor} />
           {markers.map((m) => (
             <MarkerPin
               key={m.id}

@@ -9,6 +9,10 @@ import {
   parseFeet,
   pointInPolygon,
   rectPolygon,
+  bearingOf,
+  resolveCoverage,
+  runPath,
+  sectorPath,
   zoneAt,
   type RunFloor,
   type RunZone,
@@ -161,5 +165,66 @@ describe('cable runs', () => {
         0,
       ).reason,
     ).toBe('Set the scale on 1st');
+  });
+});
+
+describe('wire paths', () => {
+  it('same floor: one right-angle leg to the closet centroid', () => {
+    const legs = runPath({ id: 'm', floorId: 'f1', x: 0.6, y: 0.3, closetZoneId: null }, [f1, f2], [closet]);
+    expect(legs).toEqual([
+      {
+        floorId: 'f1',
+        points: [
+          [0.6, 0.3],
+          [expect.closeTo(0.1), 0.3],
+          [expect.closeTo(0.1), expect.closeTo(0.1)],
+        ],
+      },
+    ]);
+  });
+  it('other floor: device → riser, then riser → closet', () => {
+    const legs = runPath({ id: 'm', floorId: 'f2', x: 0.6, y: 0.6, closetZoneId: null }, [f1, f2], [closet]);
+    expect(legs.map((l) => l.floorId)).toEqual(['f2', 'f1']);
+    expect(legs[0].points.at(-1)).toEqual([0.1, 0.1]); // f2 riser
+    expect(legs[1].points[0]).toEqual([0.5, 0.5]); // f1 riser
+  });
+  it('no route without a closet or riser', () => {
+    expect(runPath({ id: 'm', floorId: 'f1', x: 0, y: 0, closetZoneId: null }, [f1], [])).toEqual([]);
+    expect(
+      runPath(
+        { id: 'm', floorId: 'f2', x: 0, y: 0, closetZoneId: null },
+        [f1, { ...f2, riser: null }],
+        [closet],
+      ),
+    ).toEqual([]);
+  });
+});
+
+describe('coverage', () => {
+  const cam = { coverage: { defaultOn: true, rangeFt: 40, angleDeg: 90 } };
+  it('merges type defaults with device overrides, and can be turned off', () => {
+    expect(resolveCoverage(cam, { coverage: null })).toEqual({ rangeFt: 40, angleDeg: 90, dirDeg: 0 });
+    expect(resolveCoverage(cam, { coverage: { rangeFt: 25, dirDeg: 135 } })).toEqual({
+      rangeFt: 25,
+      angleDeg: 90,
+      dirDeg: 135,
+    });
+    expect(resolveCoverage(cam, { coverage: { on: false } })).toBeNull();
+    expect(
+      resolveCoverage({ coverage: { ...cam.coverage, defaultOn: false } }, { coverage: null }),
+    ).toBeNull();
+    expect(resolveCoverage({ coverage: null }, { coverage: { on: true } })).toBeNull();
+  });
+  it('bearings are clockwise from up', () => {
+    expect(bearingOf(0, -1)).toBeCloseTo(0);
+    expect(bearingOf(1, 0)).toBeCloseTo(90);
+    expect(bearingOf(0, 1)).toBeCloseTo(180);
+    expect(bearingOf(-1, 0)).toBeCloseTo(270);
+  });
+  it('draws a sector, or a circle at 360°', () => {
+    // 90° facing up from (100,100), r 10: edges at 315° and 45°
+    const d = sectorPath(100, 100, 10, 90, 0);
+    expect(d).toMatch(/^M 100 100 L 92\.9\d* 92\.9\d* A 10 10 0 0 1 107\.0\d* 92\.9\d* Z$/);
+    expect(sectorPath(0, 0, 5, 360, 0)).toContain('a 5 5 0 1 0 10 0');
   });
 });

@@ -222,12 +222,121 @@ function SingleEditor({ m }: { m: Marker }) {
         <textarea id={`${ids}-notes`} rows={3} disabled={!canEdit} {...notes} maxLength={5000} />
       </div>
       <Cabling m={m} />
+      <CoverageEditor key={m.id} m={m} />
       {canEdit && (
         <button className="btn btn-danger-ghost btn-block" onClick={() => deleteMarkers([m.id])}>
           Delete {tagOf(m)}
         </button>
       )}
     </section>
+  );
+}
+
+/** Coverage area for devices whose type has one: on/off plus range, angle and direction. */
+function CoverageEditor({ m }: { m: Marker }) {
+  const canEdit = useEditor((s) => s.canEdit);
+  const t = useEditor((s) => s.types.find((x) => x.id === m.typeId));
+  const floor = useEditor((s) => s.floors.find((f) => f.id === m.floorId));
+  const shown = useEditor((s) => s.showCoverage);
+  if (!t?.coverage) return null;
+  const o = m.coverage ?? {};
+  const on = o.on ?? t.coverage.defaultOn;
+  const range = o.rangeFt ?? t.coverage.rangeFt;
+  const angle = o.angleDeg ?? t.coverage.angleDeg;
+  const dir = o.dirDeg ?? 0;
+  const set = (p: Partial<NonNullable<Marker['coverage']>>, field: string) =>
+    editMarkers([m.id], { coverage: { ...o, ...p } }, `coverage.${field}`);
+  const num = (v: string, lo: number, hi: number) => {
+    const n = Number(v);
+    return Number.isFinite(n) && n >= lo && n <= hi ? n : null;
+  };
+  return (
+    <div className="cabling">
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={on}
+          disabled={!canEdit}
+          onChange={(e) => set({ on: e.target.checked }, 'on')}
+        />{' '}
+        Coverage area
+      </label>
+      {on && (
+        <>
+          <div className="coverage-edit">
+            <label className="field">
+              <span className="muted small">Range (ft)</span>
+              <input
+                type="number"
+                min={1}
+                max={1000}
+                step={0.5}
+                key={`r${range}`}
+                defaultValue={range}
+                disabled={!canEdit}
+                onBlur={(e) => {
+                  const n = num(e.target.value, 1, 1000);
+                  if (n != null && n !== range) set({ rangeFt: n }, 'range');
+                }}
+              />
+            </label>
+            <label className="field">
+              <span className="muted small">Angle (°)</span>
+              <input
+                type="number"
+                min={5}
+                max={360}
+                key={`a${angle}`}
+                defaultValue={angle}
+                disabled={!canEdit}
+                onBlur={(e) => {
+                  const n = num(e.target.value, 5, 360);
+                  if (n != null && n !== angle) set({ angleDeg: n }, 'angle');
+                }}
+              />
+            </label>
+            <label className="field">
+              <span className="muted small">Facing (°)</span>
+              <input
+                type="number"
+                min={0}
+                max={359}
+                key={`d${dir}`}
+                defaultValue={Math.round(((dir % 360) + 360) % 360)}
+                disabled={!canEdit || angle >= 360}
+                onBlur={(e) => {
+                  const n = num(e.target.value, -360, 720);
+                  if (n != null && n !== dir) set({ dirDeg: n }, 'dir');
+                }}
+              />
+            </label>
+          </div>
+          <p className="muted small">
+            {!floor?.ftPerPx
+              ? 'Set the floor scale to draw coverage on the plan.'
+              : !shown
+                ? 'Coverage is hidden; tick Coverage in the toolbar to see it.'
+                : canEdit
+                  ? 'Drag the handles on the plan to change range, angle and facing.'
+                  : ''}
+            {canEdit && m.coverage && (o.rangeFt != null || o.angleDeg != null || o.dirDeg != null) && (
+              <>
+                {' '}
+                <button
+                  type="button"
+                  className="link-btn"
+                  onClick={() =>
+                    editMarkers([m.id], { coverage: o.on == null ? null : { on: o.on } }, 'coverage')
+                  }
+                >
+                  Reset to {t.code} defaults
+                </button>
+              </>
+            )}
+          </p>
+        </>
+      )}
+    </div>
   );
 }
 

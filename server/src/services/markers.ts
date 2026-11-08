@@ -48,6 +48,7 @@ function snapshot(m: MarkerRow | undefined | null) {
     mountHeight: m.mountHeight,
     notes: m.notes,
     closetZoneId: m.closetZoneId,
+    coverage: m.coverage ?? null,
   };
 }
 
@@ -60,7 +61,8 @@ function classify(before: MarkerRow | undefined, after: MarkerRow): string {
     before.number !== after.number ||
     before.room !== after.room ||
     before.mountHeight !== after.mountHeight ||
-    before.notes !== after.notes;
+    before.notes !== after.notes ||
+    JSON.stringify(before.coverage ?? null) !== JSON.stringify(after.coverage ?? null);
   return moved && !edited ? 'move' : 'edit';
 }
 
@@ -109,6 +111,7 @@ export async function upsertMarker(
     mountHeight: body.mountHeight ?? '',
     notes: body.notes ?? '',
     closetZoneId: body.closetZoneId === undefined ? (existing?.closetZoneId ?? null) : body.closetZoneId,
+    coverage: body.coverage === undefined ? (existing?.coverage ?? null) : body.coverage,
     updatedBy: userId,
     updatedAt: new Date(),
     deletedAt: null,
@@ -158,6 +161,7 @@ export async function patchMarker(
     mountHeight: p.mountHeight ?? existing.mountHeight,
     notes: p.notes ?? existing.notes,
     closetZoneId: p.closetZoneId === undefined ? existing.closetZoneId : p.closetZoneId,
+    coverage: p.coverage === undefined ? existing.coverage : p.coverage,
   });
 }
 

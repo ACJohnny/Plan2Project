@@ -12,6 +12,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
+import type { MarkerCoverage, TypeCoverage } from '@sixpoint/shared';
 
 const tstz = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' });
 const created = () => tstz('created_at').notNull().defaultNow();
@@ -181,6 +182,7 @@ export const deviceTypes = pgTable(
     defaultNotes: text('default_notes').notNull().default(''),
     sortOrder: integer('sort_order').notNull().default(0),
     retiredAt: tstz('retired_at'),
+    coverage: jsonb('coverage').$type<TypeCoverage>(),
   },
   (t) => [uniqueIndex('device_types_code_uq').on(t.code)],
 );
@@ -205,6 +207,7 @@ export const markers = pgTable(
     mountHeight: text('mount_height').notNull().default(''),
     notes: text('notes').notNull().default(''),
     closetZoneId: uuid('closet_zone_id'),
+    coverage: jsonb('coverage').$type<MarkerCoverage>(),
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
     updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: created(),

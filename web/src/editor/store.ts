@@ -44,6 +44,10 @@ export interface EditorState {
   zoneNames: string[];
   /** the all-zones table dialog is open */
   zonesTable: boolean;
+  /** draw right-angle wire paths to the closets */
+  showWires: boolean;
+  /** draw device coverage areas */
+  showCoverage: boolean;
   floorId: string | null;
   selection: string[];
   armed: string | null;
@@ -63,6 +67,24 @@ export interface EditorState {
   focus: { id: string; n: number } | null;
 }
 
+function pref(key: string, dflt: boolean): boolean {
+  try {
+    const v = localStorage.getItem(key);
+    return v == null ? dflt : v === '1';
+  } catch {
+    return dflt;
+  }
+}
+/** Toggle a remembered view preference (wire paths / coverage). */
+export function setViewPref(key: 'showWires' | 'showCoverage', on: boolean) {
+  try {
+    localStorage.setItem(`spm.${key}`, on ? '1' : '0');
+  } catch {
+    /* private mode */
+  }
+  setState({ [key]: on } as Partial<EditorState>);
+}
+
 export const initialState = (): EditorState => ({
   projectId: null,
   project: null,
@@ -77,6 +99,8 @@ export const initialState = (): EditorState => ({
   zoneEdit: false,
   zoneNames: [],
   zonesTable: false,
+  showWires: pref('spm.showWires', false),
+  showCoverage: pref('spm.showCoverage', true),
   floorId: null,
   selection: [],
   armed: null,

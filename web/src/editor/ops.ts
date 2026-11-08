@@ -204,6 +204,7 @@ function bodyOf(m: Marker, extra: Partial<PutMarkerBody> = {}): PutMarkerBody {
     mountHeight: m.mountHeight,
     notes: m.notes,
     closetZoneId: m.closetZoneId,
+    coverage: m.coverage,
     ...extra,
   };
 }
@@ -265,6 +266,7 @@ function commit(
         mountHeight: a.mountHeight,
         notes: a.notes,
         closetZoneId: a.closetZoneId,
+        coverage: a.coverage,
         ...(opts.autoNumber?.has(c.id) ? { autoNumber: true } : { number: a.number }),
       });
     }
@@ -322,6 +324,7 @@ export function newMarker(typeId: string, floorId: string, x: number, y: number,
     mountHeight: '',
     notes,
     closetZoneId: null,
+    coverage: null,
     createdBy: null,
     updatedBy: null,
     updatedAt: new Date().toISOString(),
@@ -397,7 +400,7 @@ export function nudge(ids: string[], dx: number, dy: number) {
 /** R-40, R-45: field edits on one or more markers. */
 export function editMarkers(
   ids: string[],
-  patch: Partial<Pick<Marker, 'room' | 'mountHeight' | 'notes' | 'number' | 'closetZoneId'>>,
+  patch: Partial<Pick<Marker, 'room' | 'mountHeight' | 'notes' | 'number' | 'closetZoneId' | 'coverage'>>,
   field: string,
 ) {
   const s = getState();
@@ -418,6 +421,15 @@ export function editMarkers(
   });
   if (patch.room !== undefined && s.lastPlaced && ids.length === 1)
     setState({ lastPlaced: { ...s.lastPlaced, room: patch.room } });
+}
+
+/** Commit an edit made live during a drag (the store already holds `after`). */
+export function commitMarkerEdit(before: Marker, label: string) {
+  const after = getState().markers[before.id];
+  if (!after || JSON.stringify(after) === JSON.stringify(before)) return;
+  const changes = [{ id: before.id, before, after }];
+  commit(changes, tagOf(after));
+  pushHistory({ label: `${label} ${tagOf(after)}`, changes, at: Date.now() });
 }
 
 /** R-41: changing type assigns the next number for the new type. */

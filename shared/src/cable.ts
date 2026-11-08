@@ -207,6 +207,45 @@ export function computeRun(
   return { closetId: closet.id, lengthFt: base + extraFt, baseFt: base, reason: null };
 }
 
+/** One floor's part of a run: a right-angle polyline in sheet fractions. */
+export interface RunLeg {
+  floorId: string;
+  points: Pt[];
+}
+
+/** Right-angle polyline from a to b: horizontal first, then vertical. */
+function elbow(a: { x: number; y: number }, b: { x: number; y: number }): Pt[] {
+  return [
+    [a.x, a.y],
+    [b.x, a.y],
+    [b.x, b.y],
+  ];
+}
+
+/**
+ * The drawn path of a run, for showing on the plan: device → closet on one floor, or
+ * device → riser and riser → closet when the closet is on another floor. Empty when it can't be routed.
+ */
+export function runPath(
+  m: RunMarker,
+  floors: RunFloor[],
+  zones: RunZone[],
+  closets: RunZone[] = orderedClosets(floors, zones),
+): RunLeg[] {
+  const closet = (m.closetZoneId && closets.find((c) => c.id === m.closetZoneId)) || closets[0];
+  if (!closet) return [];
+  const [cx, cy] = centroid(closet.points);
+  const target = { x: cx, y: cy };
+  if (closet.floorId === m.floorId) return [{ floorId: m.floorId, points: elbow(m, target) }];
+  const df = floors.find((f) => f.id === m.floorId);
+  const cf = floors.find((f) => f.id === closet.floorId);
+  if (!df?.riser || !cf?.riser) return [];
+  return [
+    { floorId: df.id, points: elbow(m, df.riser) },
+    { floorId: cf.id, points: elbow(cf.riser, target) },
+  ];
+}
+
 /** Zone containing a point on a floor (smallest area wins when zones overlap). */
 export function zoneAt<Z extends RunZone>(zones: Z[], floorId: string, x: number, y: number): Z | null {
   let best: Z | null = null;

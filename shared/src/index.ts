@@ -4,3 +4,4 @@ export * from './coords';
 export * from './text';
 export * from './schemas';
 export * from './cable';
+export * from './coverage';
