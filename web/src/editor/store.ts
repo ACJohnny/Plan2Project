@@ -38,6 +38,12 @@ export interface EditorState {
   /** extra plan tools beyond select/box/place */
   tool: 'zone' | 'riser' | 'calibrate' | null;
   selectedZone: string | null;
+  /** Zone Edit mode: only then can zones be drawn, selected and reshaped */
+  zoneEdit: boolean;
+  /** admin-managed zone names for autocomplete */
+  zoneNames: string[];
+  /** the all-zones table dialog is open */
+  zonesTable: boolean;
   floorId: string | null;
   selection: string[];
   armed: string | null;
@@ -53,7 +59,7 @@ export interface EditorState {
   redo: HistoryEntry[];
   canEdit: boolean;
   scheduleScope: 'floor' | 'all';
-  /** bump to ask the plan to center on a marker */
+  /** bump to ask the plan to center on a marker or zone */
   focus: { id: string; n: number } | null;
 }
 
@@ -68,6 +74,9 @@ export const initialState = (): EditorState => ({
   wireTypes: [],
   tool: null,
   selectedZone: null,
+  zoneEdit: false,
+  zoneNames: [],
+  zonesTable: false,
   floorId: null,
   selection: [],
   armed: null,

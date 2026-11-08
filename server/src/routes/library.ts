@@ -16,9 +16,11 @@ import {
   UpdateTypeBody,
   WireType,
   WireTypeBody,
+  ZoneName,
+  ZoneNameBody,
 } from '@sixpoint/shared';
 import type { DB } from '../db';
-import { deviceCategories, deviceTypes, deviceTypeWires, wireTypes } from '../db/schema';
+import { deviceCategories, deviceTypes, deviceTypeWires, wireTypes, zoneNames } from '../db/schema';
 import { HttpError, requireRole, requireUser } from '../lib/auth';
 
 const P = z.object({ id: Id });
@@ -94,7 +96,9 @@ export async function loadLibrary(db: DB): Promise<Library> {
   }
   const wireUse = new Map<string, number>();
   for (const l of links) wireUse.set(l.wireTypeId, (wireUse.get(l.wireTypeId) ?? 0) + 1);
+  const zn = await db.select().from(zoneNames).orderBy(asc(zoneNames.sortOrder), asc(zoneNames.name));
   return {
+    zoneNames: zn.map((z) => ({ id: z.id, name: z.name, sortOrder: z.sortOrder })),
     wireTypes: wt.map((w) => ({
       id: w.id,
       name: w.name,
@@ -344,6 +348,73 @@ export const libraryRoutes: FastifyPluginAsyncZod = async (app) => {
       await db.transaction(async (tx) => {
         for (const [i, id] of req.body.ids.entries())
           await tx.update(wireTypes).set({ sortOrder: i }).where(eq(wireTypes.id, id));
+      });
+      changed(req);
+      return { ok: true };
+    },
+  );
+  /* ---------- zone names (autocomplete list) ---------- */
+
+  const uniqueName = async (name: string, except?: string) => {
+    const hit = (
+      await db
+        .select()
+        .from(zoneNames)
+        .where(sql`lower(${zoneNames.name}) = lower(${name})`)
+    )[0];
+    if (hit && hit.id !== except) throw new HttpError(409, `${hit.name} is already in the list`);
+  };
+
+  app.post(
+    '/api/device-library/zone-names',
+    { schema: { tags: ['library'], body: ZoneNameBody, response: { 200: ZoneName } }, preHandler: admin },
+    async (req) => {
+      await uniqueName(req.body.name);
+      const [{ n }] = await db
+        .select({ n: sql<number>`coalesce(max(sort_order), -1)::int + 1` })
+        .from(zoneNames);
+      const [z] = await db.insert(zoneNames).values({ name: req.body.name, sortOrder: n }).returning();
+      changed(req);
+      return { id: z.id, name: z.name, sortOrder: z.sortOrder };
+    },
+  );
+
+  app.patch(
+    '/api/device-library/zone-names/:id',
+    {
+      schema: { tags: ['library'], params: P, body: ZoneNameBody, response: { 200: ZoneName } },
+      preHandler: admin,
+    },
+    async (req) => {
+      await uniqueName(req.body.name, req.params.id);
+      const [z] = await db
+        .update(zoneNames)
+        .set({ name: req.body.name })
+        .where(eq(zoneNames.id, req.params.id))
+        .returning();
+      if (!z) throw new HttpError(404, 'Zone name not found');
+      changed(req);
+      return { id: z.id, name: z.name, sortOrder: z.sortOrder };
+    },
+  );
+
+  app.delete(
+    '/api/device-library/zone-names/:id',
+    { schema: { tags: ['library'], params: P }, preHandler: admin },
+    async (req) => {
+      await db.delete(zoneNames).where(eq(zoneNames.id, req.params.id));
+      changed(req);
+      return { ok: true };
+    },
+  );
+
+  app.post(
+    '/api/device-library/zone-names/reorder',
+    { schema: { tags: ['library'], body: ReorderBody }, preHandler: admin },
+    async (req) => {
+      await db.transaction(async (tx) => {
+        for (const [i, id] of req.body.ids.entries())
+          await tx.update(zoneNames).set({ sortOrder: i }).where(eq(zoneNames.id, id));
       });
       changed(req);
       return { ok: true };

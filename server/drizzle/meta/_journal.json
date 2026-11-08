@@ -15,6 +15,13 @@
       "when": 1794099243672,
       "tag": "0001_zones_wiring",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794108214048,
+      "tag": "0002_zone_names",
+      "breakpoints": true
     }
   ]
 }

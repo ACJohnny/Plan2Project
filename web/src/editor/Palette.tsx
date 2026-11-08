@@ -1,4 +1,5 @@
 import { useEditor, setState } from './store';
+import { setZoneEdit } from './zones';
 
 /** Device palette (R-28, R-60, R-61, R-65). Hidden for viewers (R-13). */
 export function Palette() {
@@ -8,16 +9,24 @@ export function Palette() {
   const boxMode = useEditor((s) => s.boxMode);
   const hasFloor = useEditor((s) => !!s.floorId);
   const tool = useEditor((s) => s.tool);
+  const zoneEdit = useEditor((s) => s.zoneEdit);
+  const zoneCount = useEditor((s) => Object.keys(s.zones).length);
 
-  const arm = (id: string) => setState({ armed: armed === id ? null : id, boxMode: false, tool: null });
+  const arm = (id: string) => {
+    if (zoneEdit) setZoneEdit(false);
+    setState({ armed: armed === id ? null : id, boxMode: false, tool: null });
+  };
 
   return (
     <aside className="palette" aria-label="Device palette">
       <div className="palette-tools" role="group" aria-label="Tools">
         <button
           className="tool-btn"
-          aria-pressed={!armed && !boxMode && !tool}
-          onClick={() => setState({ armed: null, boxMode: false, tool: null })}
+          aria-pressed={!armed && !boxMode && !tool && !zoneEdit}
+          onClick={() => {
+            setZoneEdit(false);
+            setState({ armed: null, boxMode: false, tool: null });
+          }}
           title="Select (Esc)"
         >
           <span aria-hidden="true">↖</span> Select
@@ -25,7 +34,10 @@ export function Palette() {
         <button
           className="tool-btn"
           aria-pressed={boxMode}
-          onClick={() => setState({ armed: null, boxMode: !boxMode, tool: null })}
+          onClick={() => {
+            setZoneEdit(false);
+            setState({ armed: null, boxMode: !boxMode, tool: null });
+          }}
           title="Box select (or Shift-drag)"
         >
           <span aria-hidden="true">⬚</span> Box
@@ -36,16 +48,38 @@ export function Palette() {
         <div className="palette-list">
           <button
             className="palette-btn"
-            aria-pressed={tool === 'zone'}
+            aria-pressed={zoneEdit}
             disabled={!hasFloor}
-            onClick={() =>
-              setState({ tool: tool === 'zone' ? null : 'zone', armed: null, boxMode: false, selection: [] })
-            }
-            title="Outline a room or equipment closet"
+            onClick={() => setZoneEdit(!zoneEdit)}
+            title="Draw, select and reshape zones. Outside Zone Edit, clicking a zone does nothing."
           >
-            <span className="tag tag-zone">ZONE</span>
-            <span className="palette-name">Draw zone</span>
+            <span className="tag tag-zone">EDIT</span>
+            <span className="palette-name">{zoneEdit ? 'Done editing zones' : 'Edit zones'}</span>
           </button>
+          {zoneEdit && (
+            <button
+              className="palette-btn"
+              aria-pressed={tool === 'zone'}
+              onClick={() =>
+                setState({ tool: tool === 'zone' ? null : 'zone', selectedZone: null, selection: [] })
+              }
+              title="Outline a room or equipment closet"
+            >
+              <span className="tag tag-zone">+</span>
+              <span className="palette-name">Draw zone</span>
+            </button>
+          )}
+          <button
+            className="palette-btn"
+            onClick={() => setState({ zonesTable: true })}
+            title="List every zone and edit its properties"
+          >
+            <span className="tag tag-zone">≡</span>
+            <span className="palette-name">All zones ({zoneCount})</span>
+          </button>
+        </div>
+        <h3 className="eyebrow">Cabling</h3>
+        <div className="palette-list">
           <button
             className="palette-btn"
             aria-pressed={tool === 'riser'}

@@ -1844,3 +1844,72 @@ input[type='radio'] {
     display: none;
   }
 }
+
+/* ---------- Zone Edit mode ---------- */
+.plan.is-zone-edit .marker {
+  opacity: 0.35;
+  pointer-events: none;
+}
+.plan.is-zone-edit .zone {
+  fill-opacity: 1;
+  stroke-opacity: 1;
+  stroke-width: 2px;
+}
+.plan.is-zone-edit .zone-label {
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.2);
+}
+.zone-edit-hint {
+  border: 1.5px dashed var(--accent);
+}
+.zone-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.zone-list-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 36px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.zone-list-btn:hover,
+.zone-list-btn:focus-visible {
+  background: var(--surface-2);
+}
+.zone-swatch.sm {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  flex: none;
+}
+.zones-table-filters {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.zones-table input {
+  min-width: 160px;
+  width: 100%;
+}
+.nowrap {
+  white-space: nowrap;
+}
+.lib-types.zone-names li {
+  padding-left: 0;
+  border-bottom: 1px solid var(--border);
+}

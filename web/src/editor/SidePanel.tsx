@@ -3,6 +3,7 @@ import { findDuplicates, type Marker } from '@sixpoint/shared';
 import { formatFeet } from '@sixpoint/shared';
 import { changeType, deleteMarkers, editMarkers } from './ops';
 import { ZoneEditor } from './ZoneDialogs';
+import { ZoneList, useZoneNameOptions } from './ZonesPanel';
 import { useClosets, useSummary } from './zones';
 import { colorOf, getState, setState, tagOf, typeOf, useEditor } from './store';
 
@@ -59,9 +60,11 @@ function MarkerEditor() {
   const selection = useEditor((s) => s.selection);
   const markers = useEditor((s) => s.markers);
   const selectedZone = useEditor((s) => (s.selectedZone ? s.zones[s.selectedZone] : null));
+  const zoneEdit = useEditor((s) => s.zoneEdit);
   const sel = selection.map((id) => markers[id]).filter(Boolean);
-  if (!sel.length && selectedZone)
+  if (!sel.length && selectedZone && zoneEdit)
     return <ZoneEditor key={selectedZone.id + selectedZone.updatedAt} zone={selectedZone} />;
+  if (!sel.length && zoneEdit) return <ZoneList />;
   if (!sel.length)
     return (
       <section className="editor-card empty">
@@ -90,12 +93,19 @@ function RoomInput({
   id: string;
 }) {
   const listId = useId();
+  const zoneNames = useZoneNameOptions();
   const options = useMemo(() => {
     const q = field.value.trim().toLowerCase();
-    return rooms(all)
-      .filter((r) => r.toLowerCase().includes(q) && r.toLowerCase() !== q)
+    const seen = new Set<string>();
+    return [...rooms(all), ...zoneNames]
+      .filter((r) => {
+        const k = r.toLowerCase();
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return k.includes(q) && k !== q;
+      })
       .slice(0, 12);
-  }, [all, field.value]);
+  }, [all, field.value, zoneNames]);
   return (
     <>
       <input id={id} {...field} list={listId} autoComplete="off" maxLength={200} />

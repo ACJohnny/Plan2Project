@@ -55,6 +55,41 @@ describe('wire library', () => {
   });
 });
 
+describe('zone names', () => {
+  it('seeds a default list that admins can add to, rename, reorder and delete', async () => {
+    const names = lib.zoneNames.map((z: any) => z.name);
+    expect(names).toContain('Living Room');
+    expect(names).toContain('Equipment Closet');
+    const add = await admin.post('/api/device-library/zone-names', { name: 'Sunroom' });
+    expect(add.status).toBe(200);
+    expect((await admin.post('/api/device-library/zone-names', { name: 'sunroom' })).status).toBe(409);
+    const ren = await admin.patch(`/api/device-library/zone-names/${add.json.id}`, { name: 'Sun Room' });
+    expect(ren.json.name).toBe('Sun Room');
+    let l = (await admin.get('/api/device-library')).json;
+    const ids = l.zoneNames.map((z: any) => z.id);
+    await admin.post('/api/device-library/zone-names/reorder', {
+      ids: [add.json.id, ...ids.filter((i: string) => i !== add.json.id)],
+    });
+    l = (await admin.get('/api/device-library')).json;
+    expect(l.zoneNames[0].name).toBe('Sun Room');
+    await admin.del(`/api/device-library/zone-names/${add.json.id}`);
+    l = (await admin.get('/api/device-library')).json;
+    expect(l.zoneNames.map((z: any) => z.name)).not.toContain('Sun Room');
+  });
+
+  it('only admins change the list', async () => {
+    await admin.post('/api/users', {
+      email: 'zn-ed@example.com',
+      name: 'Ed',
+      role: 'editor',
+      password: 'editor-pass',
+    });
+    const ed = await login(env.app, 'zn-ed@example.com', 'editor-pass');
+    expect((await ed.post('/api/device-library/zone-names', { name: 'Nope' })).status).toBe(403);
+    expect((await ed.get('/api/device-library')).json.zoneNames.length).toBeGreaterThan(10);
+  });
+});
+
 describe('zones, scale and runs', () => {
   let closetId: string;
   let closet2Id: string;

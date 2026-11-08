@@ -7,6 +7,7 @@ import {
   type Library,
   type Role,
   type User,
+  type ZoneName,
 } from '@sixpoint/shared';
 import { api } from '../api';
 import { useAuth } from '../auth';
@@ -14,7 +15,7 @@ import { AppHeader } from '../components/AppHeader';
 import { Confirm, Modal } from '../components/ui';
 import { toast } from '../toast';
 
-type Tab = 'users' | 'library' | 'tokens';
+type Tab = 'users' | 'library' | 'zones' | 'tokens';
 
 export function AdminPage() {
   const { can } = useAuth();
@@ -35,6 +36,7 @@ export function AdminPage() {
             [
               ['users', 'Users'],
               ['library', 'Device library'],
+              ['zones', 'Zone names'],
               ['tokens', 'API tokens'],
             ] as [Tab, string][]
           ).map(([k, l]) => (
@@ -51,6 +53,7 @@ export function AdminPage() {
         </div>
         {tab === 'users' && <UsersAdmin />}
         {tab === 'library' && <LibraryAdmin />}
+        {tab === 'zones' && <ZoneNamesAdmin />}
         {tab === 'tokens' && <TokensAdmin />}
       </main>
     </>
@@ -254,7 +257,7 @@ function ContrastNote({ color }: { color: string }) {
 
 function LibraryAdmin() {
   const [lib, setLib] = useState<Library | null>(null);
-  const [editType, setEditType] = useState<DeviceType | 'new' | null>(null);
+  const [editType, setEditType] = useState<DeviceType | { newIn: string } | null>(null);
   const [editCat, setEditCat] = useState<Category | 'new' | null>(null);
   const [delType, setDelType] = useState<DeviceType | null>(null);
   const load = () => api.get<Library>('/api/device-library').then(setLib, (e) => toast.error(e.message));
@@ -297,8 +300,11 @@ function LibraryAdmin() {
           <button className="btn" onClick={() => setEditCat('new')}>
             + Category
           </button>
-          <button className="btn btn-primary" onClick={() => setEditType('new')}>
-            + Device type
+          <button
+            className="btn btn-primary"
+            onClick={() => setEditType({ newIn: lib.categories[0]?.id ?? '' })}
+          >
+            + Add device type
           </button>
         </div>
       </div>
@@ -330,6 +336,13 @@ function LibraryAdmin() {
                 disabled={ci === lib.categories.length - 1}
               >
                 ↓
+              </button>
+              <button
+                className="btn btn-sm"
+                onClick={() => setEditType({ newIn: c.id })}
+                aria-label={`Add a device type to ${c.name}`}
+              >
+                + Add device
               </button>
               <button className="btn btn-sm" onClick={() => setEditCat(c)}>
                 Edit
@@ -405,7 +418,8 @@ function LibraryAdmin() {
       {editType && (
         <TypeDialog
           lib={lib}
-          type={editType === 'new' ? null : editType}
+          type={'newIn' in editType ? null : editType}
+          categoryId={'newIn' in editType ? editType.newIn : undefined}
           onClose={() => setEditType(null)}
           onDone={load}
         />
@@ -502,16 +516,18 @@ function CategoryDialog({
 function TypeDialog({
   lib,
   type,
+  categoryId,
   onClose,
   onDone,
 }: {
   lib: Library;
   type: DeviceType | null;
+  categoryId?: string;
   onClose: () => void;
   onDone: () => void;
 }) {
   const [f, setF] = useState({
-    categoryId: type?.categoryId ?? lib.categories[0]?.id ?? '',
+    categoryId: type?.categoryId ?? categoryId ?? lib.categories[0]?.id ?? '',
     code: type?.code ?? '',
     name: type?.name ?? '',
     defaultModel: type?.defaultModel ?? '',
@@ -836,5 +852,145 @@ function WireTypesAdmin({ lib, onChange }: { lib: Library; onChange: () => void 
         <button className="btn">Add wire type</button>
       </form>
     </div>
+  );
+}
+
+/* ---------- zone names (autocomplete when naming zones and rooms) ---------- */
+
+function ZoneNamesAdmin() {
+  const [names, setNames] = useState<ZoneName[] | null>(null);
+  const [name, setName] = useState('');
+  const [editing, setEditing] = useState<{ id: string; name: string } | null>(null);
+  const load = () =>
+    api.get<Library>('/api/device-library').then(
+      (l) => setNames(l.zoneNames),
+      (e) => toast.error(e.message),
+    );
+  useEffect(() => {
+    load();
+  }, []);
+  const act = async (fn: () => Promise<unknown>) => {
+    try {
+      await fn();
+      await load();
+      return true;
+    } catch (e: any) {
+      toast.error(e.message);
+      return false;
+    }
+  };
+  if (!names) return <p className="muted">Loading…</p>;
+  const move = (i: number, d: number) => {
+    const ids = names.map((n) => n.id);
+    const j = i + d;
+    if (j < 0 || j >= ids.length) return;
+    [ids[i], ids[j]] = [ids[j], ids[i]];
+    act(() => api.post('/api/device-library/zone-names/reorder', { ids }));
+  };
+  const sortAz = () =>
+    act(() =>
+      api.post('/api/device-library/zone-names/reorder', {
+        ids: [...names].sort((a, b) => a.name.localeCompare(b.name)).map((n) => n.id),
+      }),
+    );
+  return (
+    <section className="card">
+      <div className="card-head">
+        <h2>Zone names</h2>
+        <div className="row-actions">
+          <button className="btn" onClick={sortAz} disabled={names.length < 2}>
+            Sort A–Z
+          </button>
+        </div>
+      </div>
+      <p className="muted small">
+        These names are suggested, in this order, when anyone names a zone or types a device's Room. People
+        can still type any other name.
+      </p>
+      <form
+        className="inline-form"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (await act(() => api.post('/api/device-library/zone-names', { name }))) setName('');
+        }}
+      >
+        <label className="field grow">
+          <span>New zone name</span>
+          <input
+            required
+            value={name}
+            maxLength={120}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Sunroom, Bedroom 6, IDF 2"
+          />
+        </label>
+        <button className="btn btn-primary">Add name</button>
+      </form>
+      <ul className="lib-types zone-names">
+        {names.map((n, i) => (
+          <li key={n.id}>
+            {editing?.id === n.id ? (
+              <form
+                className="inline-form tight"
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (
+                    await act(() =>
+                      api.patch(`/api/device-library/zone-names/${n.id}`, { name: editing.name }),
+                    )
+                  )
+                    setEditing(null);
+                }}
+              >
+                <input
+                  aria-label="Zone name"
+                  autoFocus
+                  value={editing.name}
+                  maxLength={120}
+                  onChange={(e) => setEditing({ ...editing, name: e.target.value })}
+                />
+                <button className="btn btn-sm btn-primary">Save</button>
+                <button type="button" className="btn btn-sm" onClick={() => setEditing(null)}>
+                  Cancel
+                </button>
+              </form>
+            ) : (
+              <>
+                <span className="lib-type-name">{n.name}</span>
+                <div className="row-actions">
+                  <button
+                    className="icon-btn"
+                    aria-label={`Move ${n.name} up`}
+                    onClick={() => move(i, -1)}
+                    disabled={i === 0}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    className="icon-btn"
+                    aria-label={`Move ${n.name} down`}
+                    onClick={() => move(i, 1)}
+                    disabled={i === names.length - 1}
+                  >
+                    ↓
+                  </button>
+                  <button className="btn btn-sm" onClick={() => setEditing({ id: n.id, name: n.name })}>
+                    Rename
+                  </button>
+                  <button
+                    className="btn btn-sm btn-danger-ghost"
+                    aria-label={`Delete ${n.name}`}
+                    onClick={() => act(() => api.del(`/api/device-library/zone-names/${n.id}`))}
+                  >
+                    Delete
+                  </button>
+                </div>
+              </>
+            )}
+          </li>
+        ))}
+        {!names.length && <li className="muted small">No zone names yet.</li>}
+      </ul>
+    </section>
   );
 }

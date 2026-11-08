@@ -15,7 +15,8 @@ import { Modal } from '../components/ui';
 import { toast } from '../toast';
 import { editMarkers } from './ops';
 import { colorOf, getState, setState, tagOf, useEditor } from './store';
-import { deleteZone, patchFloor, saveZone, useClosets } from './zones';
+import { deleteZone, patchFloor, saveZone, setZoneEdit, useClosets } from './zones';
+import { renameZone, ZoneNameInput } from './ZonesPanel';
 
 function audioDevicesIn(z: Zone): number {
   const s = getState();
@@ -39,11 +40,11 @@ function ZoneFields({
     <>
       <label className="field span-2">
         <span>Name</span>
-        <input
+        <ZoneNameInput
           required
+          autoFocus
           value={f.name}
           onChange={(e) => set({ name: e.target.value })}
-          maxLength={120}
           placeholder="e.g. Living Room"
         />
       </label>
@@ -150,12 +151,12 @@ export function ZoneEditor({ zone }: { zone: Zone }) {
         <label className="field" htmlFor="zone-name">
           <span>Name</span>
         </label>
-        <input
+        <ZoneNameInput
           id="zone-name"
           value={name}
           disabled={!canEdit}
           onChange={(e) => setName(e.target.value)}
-          onBlur={() => name.trim() && name !== zone.name && update({ name: name.trim() })}
+          onBlur={() => renameZone(zone, name)}
           onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
         />
         <label className="field" htmlFor="zone-kind">
@@ -205,7 +206,10 @@ export function ZoneEditor({ zone }: { zone: Zone }) {
               key={m.id}
               className="tag tag-sm tag-btn"
               style={{ background: colorOf(m.typeId) }}
-              onClick={() => setState({ selection: [m.id], selectedZone: null })}
+              onClick={() => {
+                setZoneEdit(false);
+                setState({ selection: [m.id] });
+              }}
             >
               {tagOf(m)}
             </button>
@@ -213,6 +217,9 @@ export function ZoneEditor({ zone }: { zone: Zone }) {
         </div>
       )}
       {canEdit && <p className="muted small">Drag the corner handles on the plan to reshape.</p>}
+      <button className="btn btn-sm" onClick={() => setState({ selectedZone: null })}>
+        ← Zones on this floor
+      </button>
       {canEdit && (
         <button className="btn btn-danger-ghost btn-block" onClick={() => deleteZone(zone.id)}>
           Delete {zone.kind === 'closet' ? 'closet' : 'zone'}

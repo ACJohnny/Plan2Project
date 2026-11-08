@@ -55,6 +55,7 @@ export function Toolbar() {
           {can('editor') && floor && <MenuItem onClick={() => setDialog('floor')}>Floor settings…</MenuItem>}
           {can('editor') && <MenuItem onClick={() => setDialog('settings')}>Project settings…</MenuItem>}
           {can('editor') && <MenuItem onClick={() => setDialog('renumber')}>Renumber…</MenuItem>}
+          <MenuItem onClick={() => setState({ zonesTable: true })}>Zones…</MenuItem>
           <MenuItem onClick={() => setDialog('summary')}>Summary (cable, audio zones)</MenuItem>
           <MenuItem onClick={() => setDialog('history')}>History</MenuItem>
           <div className="menu-sep" role="separator" />

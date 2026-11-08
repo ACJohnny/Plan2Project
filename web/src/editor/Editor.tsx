@@ -23,6 +23,8 @@ import { planCtl } from './planCtl';
 import { SidePanel } from './SidePanel';
 import { getState, initialState, setState, useEditor } from './store';
 import { Toolbar } from './Toolbar';
+import { deleteZone, setZoneEdit } from './zones';
+import { ZonesTableDialog } from './ZonesPanel';
 import { onUploadProgress, UploadDialog } from './Uploads';
 
 const sortFloors = (fl: Floor[]) =>
@@ -59,6 +61,7 @@ export function EditorPage() {
           categories: lib.categories,
           types: lib.types,
           wireTypes: lib.wireTypes,
+          zoneNames: lib.zoneNames.map((z) => z.name),
           markers: Object.fromEntries(ms.map((m) => [m.id, m])),
           zones: Object.fromEntries(zs.map((z) => [z.id, z])),
         });
@@ -135,7 +138,12 @@ export function EditorPage() {
     on('upload.progress', (e) => onUploadProgress(e.upload));
     on('library.update', async () => {
       const lib = await api.get<Library>('/api/device-library');
-      setState({ categories: lib.categories, types: lib.types, wireTypes: lib.wireTypes });
+      setState({
+        categories: lib.categories,
+        types: lib.types,
+        wireTypes: lib.wireTypes,
+        zoneNames: lib.zoneNames.map((z) => z.name),
+      });
     });
     es.addEventListener('presence', (ev) =>
       setState({ presence: JSON.parse((ev as MessageEvent).data).users }),
@@ -201,10 +209,15 @@ export function EditorPage() {
       if ((k === 'Delete' || k === 'Backspace') && s.selection.length && s.canEdit) {
         e.preventDefault();
         deleteMarkers(s.selection);
+      } else if ((k === 'Delete' || k === 'Backspace') && s.zoneEdit && s.selectedZone && s.canEdit) {
+        if (s.tool === 'zone') return; // Backspace removes a corner while drawing
+        e.preventDefault();
+        deleteZone(s.selectedZone);
       } else if (k === 'Escape') {
         if (s.tool) setState({ tool: null });
         else if (s.selectedZone || s.selection.length) setState({ selectedZone: null, selection: [] });
         else if (s.armed || s.boxMode) setState({ armed: null, boxMode: false });
+        else if (s.zoneEdit) setZoneEdit(false);
       } else if (k.startsWith('Arrow') && s.selection.length && s.canEdit) {
         e.preventDefault();
         const step = e.shiftKey ? 10 : 1;
@@ -260,6 +273,7 @@ export function EditorPage() {
         <SidePanel />
       </div>
       <UploadDialog />
+      <ZonesTableDialog />
     </div>
   );
 }

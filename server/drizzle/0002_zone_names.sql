@@ -1,0 +1,48 @@
+CREATE TABLE "zone_names" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"name" text NOT NULL,
+	"sort_order" integer DEFAULT 0 NOT NULL
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX "zone_names_name_uq" ON "zone_names" USING btree (lower("name"));
+--> statement-breakpoint
+INSERT INTO "zone_names" ("name", "sort_order") VALUES
+('Living Room', 0),
+('Family Room', 1),
+('Great Room', 2),
+('Kitchen', 3),
+('Dining Room', 4),
+('Breakfast Nook', 5),
+('Foyer', 6),
+('Hallway', 7),
+('Primary Bedroom', 8),
+('Primary Bath', 9),
+('Primary Closet', 10),
+('Bedroom 2', 11),
+('Bedroom 3', 12),
+('Bedroom 4', 13),
+('Bedroom 5', 14),
+('Guest Suite', 15),
+('Kids Room', 16),
+('Playroom', 17),
+('Office', 18),
+('Den', 19),
+('Library', 20),
+('Media Room', 21),
+('Theater', 22),
+('Game Room', 23),
+('Bar', 24),
+('Wine Cellar', 25),
+('Gym', 26),
+('Basement', 27),
+('Laundry', 28),
+('Mudroom', 29),
+('Garage', 30),
+('Patio', 31),
+('Deck', 32),
+('Pool', 33),
+('Yard', 34),
+('Equipment Closet', 35),
+('Mechanical Room', 36),
+('Utility Room', 37),
+('IDF', 38);

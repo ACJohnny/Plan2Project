@@ -173,10 +173,14 @@ export const DeviceType = z.object({
 export type DeviceType = z.infer<typeof DeviceType>;
 export const WireType = z.object({ id: Id, name: z.string(), sortOrder: z.number(), inUse: z.number() });
 export type WireType = z.infer<typeof WireType>;
+/** Admin-managed zone names offered as autocomplete when naming zones and rooms. */
+export const ZoneName = z.object({ id: Id, name: z.string(), sortOrder: z.number() });
+export type ZoneName = z.infer<typeof ZoneName>;
 export const Library = z.object({
   categories: z.array(Category),
   types: z.array(DeviceType),
   wireTypes: z.array(WireType),
+  zoneNames: z.array(ZoneName),
 });
 export type Library = z.infer<typeof Library>;
 
@@ -200,6 +204,7 @@ export const UpdateTypeBody = CreateTypeBody.partial().extend({
     .optional(),
 });
 export const WireTypeBody = z.object({ name: z.string().trim().min(1).max(60) });
+export const ZoneNameBody = z.object({ name: z.string().trim().min(1).max(120) });
 export const ReorderBody = z.object({ ids: z.array(Id).min(1) });
 
 const frac = z.number().min(0).max(1);

@@ -86,8 +86,11 @@ Every change saves as you go. The toolbar shows Saved / Saving… / Offline, cha
 
 ## Zones, equipment closets and cable runs
 
-- **Draw zones:** in the palette, choose **Zones → Draw zone**. Click the corners of a room and finish by clicking the first corner or pressing Enter. Backspace removes the last corner. To draw a rectangle instead, drag. Name the zone and pick **Room** or **Equipment closet**.
-- **Edit zones:** click a zone to select it, then drag its corner handles to reshape it. The side panel edits the name and kind and has a Delete button.
+- **Zone Edit mode:** zones can be drawn, selected and reshaped only in Zone Edit mode (palette → **Zones → Edit zones**). Outside it, clicking a zone does nothing. Inside it, devices are dimmed and can't be clicked. Choose a device type, or press Esc with nothing selected, to leave the mode.
+- **Draw zones:** in Zone Edit, choose **Draw zone** (or **+ New zone**). Click the corners of a room and finish by clicking the first corner or pressing Enter. Backspace removes the last corner. To draw a rectangle instead, drag. Name the zone and pick **Room** or **Equipment closet**.
+- **Edit zones:** in Zone Edit, click a zone to select it, then drag its corner handles to reshape it. The side panel edits the name, kind and audio format; Delete removes it. With nothing selected, the side panel lists the floor's zones.
+- **Zones table:** Project menu → **Zones…** (or palette → **All zones**) lists every zone on every floor. You can edit the name, kind and audio format, see device and run counts, jump to a zone, or delete it. Renaming a zone also renames the Room of devices that took the old name.
+- **Zone names:** Admin → **Zone names** is the list of names suggested when naming a zone or typing a device's Room. It's seeded with common rooms; admins add, rename, reorder and delete names.
 - **Rooms from zones:** devices placed inside a zone get the zone's name as their Room. Moving a device into another zone updates a Room that was blank or came from the old zone.
 - **Closets:** every device runs to the **first** equipment closet in floor order. When a project has more than one closet, the device panel has a **Closet** picker to choose another.
 - **Wires:** each device type has wires (for example TV = 2× Cat6 + 1× RG6), edited under Admin → Device library. That page also manages the wire types.

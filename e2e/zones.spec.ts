@@ -9,7 +9,10 @@ test('zones, equipment closet, scale, run length, audio format and summary', asy
   await page.goto(`/p/${proj.id}`);
   await expect(page.locator('.sheet img')).toBeVisible();
 
-  // 1) equipment closet: drag a rectangle with the zone tool
+  // 1) Zone Edit mode, then an equipment closet: drag a rectangle with the zone tool
+  await expect(page.getByRole('button', { name: 'Draw zone' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Edit zones' }).click();
+  await expect(page.locator('.plan.is-zone-edit')).toBeVisible();
   await page.getByRole('button', { name: 'Draw zone' }).click();
   const a = await sheetPoint(page, 0.1, 0.1);
   const b = await sheetPoint(page, 0.2, 0.25);
@@ -18,6 +21,8 @@ test('zones, equipment closet, scale, run length, audio format and summary', asy
   await page.mouse.move(b.x, b.y, { steps: 6 });
   await page.mouse.up();
   let dlg = page.getByRole('dialog', { name: /^New (zone|equipment closet)$/ });
+  // names from the admin list are offered as suggestions
+  await expect(dlg.locator('datalist option[value="Living Room"]')).toHaveCount(1);
   await dlg.getByLabel('Name').fill('Garage rack');
   await dlg.getByLabel('Equipment closet').check();
   await dlg.getByRole('button', { name: 'Save zone' }).click();
@@ -62,26 +67,47 @@ test('zones, equipment closet, scale, run length, audio format and summary', asy
   await page.keyboard.press('Escape');
   await page.keyboard.press('Escape');
 
-  // 5) audio format on the zone
+  // 5) outside Zone Edit, clicking a zone does nothing; inside it, it selects the zone
   const r = await sheetPoint(page, 0.62, 0.45);
+  await page.mouse.click(r.x, r.y);
+  await expect(page.getByRole('region', { name: 'Zone Great Room' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Edit zones' }).click();
+  await expect(page.getByRole('region', { name: 'Zones on this floor' })).toContainText('Garage rack');
   await page.mouse.click(r.x, r.y);
   await expect(page.getByRole('region', { name: 'Zone Great Room' })).toBeVisible();
   await page.screenshot({ path: test.info().outputPath('zones-desktop.png') });
   await page.getByLabel('Audio').selectOption('5.1');
   await expect(page.getByText('Saved')).toBeVisible();
+  await page.getByRole('button', { name: 'Done editing zones' }).click();
+  await expect(page.locator('.plan.is-zone-edit')).toHaveCount(0);
+
+  // 5b) the zones table edits properties; renaming carries the device's Room along
+  await page.getByRole('button', { name: 'Project menu' }).click();
+  await page.getByRole('menuitem', { name: 'Zones…' }).click();
+  const tbl = page.getByRole('dialog', { name: 'Zones' });
+  await expect(tbl.getByRole('row')).toHaveCount(3);
+  const nameBox = tbl.getByLabel('Name of Great Room');
+  await nameBox.fill('Family Room');
+  await nameBox.press('Enter');
+  await expect(page.locator('.zone-label', { hasText: 'Family Room' })).toBeVisible();
+  await expect(tbl.getByLabel('Audio format of Family Room')).toHaveValue('5.1');
+  await tbl.getByRole('button', { name: 'Close' }).click();
+  await page.locator('.sched-row', { hasText: 'SPK' }).first().click();
+  await expect(page.getByLabel('Room')).toHaveValue('Family Room');
+  await page.keyboard.press('Escape');
 
   // 6) summary lists the audio zone and cable totals
   await page.getByRole('button', { name: 'Project menu' }).click();
   await page.getByRole('menuitem', { name: /Summary/ }).click();
   const sum = page.getByRole('dialog', { name: 'Project summary' });
-  await expect(sum.locator('.audio-group', { hasText: '5.1' })).toContainText('Great Room');
+  await expect(sum.locator('.audio-group', { hasText: '5.1' })).toContainText('Family Room');
   await expect(sum.getByRole('row', { name: /16\/2 speaker/ })).toContainText(/10[34] ft/);
   await page.screenshot({ path: test.info().outputPath('summary.png') });
 
   // persisted on the server
   const zones = await (await api.get(`/api/projects/${proj.id}/zones`)).json();
   expect(zones.map((z: any) => [z.name, z.kind, z.points.length, z.audioFormat]).sort()).toEqual([
+    ['Family Room', 'room', 6, '5.1'],
     ['Garage rack', 'closet', 4, null],
-    ['Great Room', 'room', 6, '5.1'],
   ]);
 });

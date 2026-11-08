@@ -240,6 +240,16 @@ export const wireTypes = pgTable('wire_types', {
   sortOrder: integer('sort_order').notNull().default(0),
 });
 
+export const zoneNames = pgTable(
+  'zone_names',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: text('name').notNull(),
+    sortOrder: integer('sort_order').notNull().default(0),
+  },
+  (t) => [uniqueIndex('zone_names_name_uq').on(sql`lower(${t.name})`)],
+);
+
 export const deviceTypeWires = pgTable(
   'device_type_wires',
   {

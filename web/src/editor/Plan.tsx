@@ -21,7 +21,7 @@ import { planCtl } from './planCtl';
 import { colorOf, getState, setState, tagOf, typeOf, useEditor } from './store';
 import { UploadDropZone } from './Uploads';
 import { CalibrateDialog, ZoneDialog } from './ZoneDialogs';
-import { patchFloor, saveZone, newZone } from './zones';
+import { patchFloor, saveZone, newZone, setZoneEdit } from './zones';
 import { toast } from '../toast';
 
 const DRAG_THRESHOLD = 5;
@@ -66,6 +66,7 @@ export function Plan() {
   const zonesAll = useEditor((s) => s.zones);
   const tool = useEditor((s) => s.tool);
   const selectedZone = useEditor((s) => s.selectedZone);
+  const zoneEdit = useEditor((s) => s.zoneEdit);
 
   const vpRef = useRef<HTMLDivElement>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
@@ -218,7 +219,9 @@ export function Plan() {
     };
     planCtl.fit = () => sheet && vpRef.current && animateTo(fitView(sheet, vpSize()));
     planCtl.centerOn = (id) => {
-      const m = getState().markers[id];
+      const st = getState();
+      const z = st.zones[id];
+      const m = st.markers[id] ?? (z ? { x: centroid(z.points)[0], y: centroid(z.points)[1] } : null);
       if (!m || !sheet || !viewRef.current) return;
       const scale = clamp(
         Math.max(viewRef.current.scale, fitRef.current * 2.5),
@@ -236,7 +239,8 @@ export function Plan() {
   }, [floor?.id, sheet?.width, sheet?.height]);
 
   useEffect(() => {
-    if (focus && getState().markers[focus.id]?.floorId === floor?.id) {
+    const st = getState();
+    if (focus && (st.markers[focus.id] ?? st.zones[focus.id])?.floorId === floor?.id) {
       // wait a frame so a just-switched floor has its view
       requestAnimationFrame(() => planCtl.centerOn(focus.id));
     }
@@ -298,8 +302,9 @@ export function Plan() {
       id: e.pointerId,
       sx: p.x,
       sy: p.y,
-      markerId: getState().tool ? null : (mEl?.dataset.marker ?? null),
-      vertex: vEl ? { zoneId: vEl.dataset.zone!, index: Number(vEl.dataset.vertex) } : null,
+      markerId: getState().tool || getState().zoneEdit ? null : (mEl?.dataset.marker ?? null),
+      vertex:
+        vEl && getState().zoneEdit ? { zoneId: vEl.dataset.zone!, index: Number(vEl.dataset.vertex) } : null,
       shift: e.shiftKey,
       alt: e.altKey,
     };
@@ -475,11 +480,11 @@ export function Plan() {
         if (inSheet(f)) placeMarker(s.armed, f.x, f.y); // clicks outside the sheet place nothing
         return;
       }
-      if (!g.shift) {
-        // select the zone under the click, if any
+      if (s.zoneEdit) {
+        // Zone Edit mode: select the zone under the click, if any
         const z = inSheet(f) ? zoneAt(zones, floor!.id, f.x, f.y) : null;
         setState({ selection: [], selectedZone: z?.id ?? null });
-      }
+      } else if (!g.shift) setState({ selection: [] });
     } else if (g.kind === 'vertex') {
       const z = getState().zones[g.zone.id];
       if (z) saveZone(z);
@@ -521,7 +526,7 @@ export function Plan() {
   return (
     <>
       <div
-        className={`plan ${armed || tool ? 'is-placing' : ''} ${boxMode ? 'is-box' : ''}`}
+        className={`plan ${armed || tool ? 'is-placing' : ''} ${boxMode ? 'is-box' : ''} ${zoneEdit ? 'is-zone-edit' : ''}`}
         ref={vpRef}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -612,6 +617,7 @@ export function Plan() {
             />
           ))}
           {canEdit &&
+            zoneEdit &&
             !tool &&
             selectedZone &&
             zonesAll[selectedZone]?.floorId === floor.id &&
@@ -660,6 +666,23 @@ export function Plan() {
             </span>
             <button className="btn btn-sm" onClick={() => setState({ tool: null })}>
               Cancel
+            </button>
+          </div>
+        )}
+        {zoneEdit && !tool && canEdit && (
+          <div className="place-hint zone-edit-hint" role="status" onPointerDown={(e) => e.stopPropagation()}>
+            <span>
+              <strong>Zone Edit</strong> ·{' '}
+              {selectedZone ? 'Drag the corner handles to reshape' : 'Click a zone to edit it'}
+            </span>
+            <button
+              className="btn btn-sm"
+              onClick={() => setState({ tool: 'zone', selectedZone: null, selection: [] })}
+            >
+              + New zone
+            </button>
+            <button className="btn btn-sm btn-primary" onClick={() => setZoneEdit(false)}>
+              Done
             </button>
           </div>
         )}

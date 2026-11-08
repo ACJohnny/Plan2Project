@@ -13,6 +13,21 @@ import { toast } from '../toast';
 import { uuid } from '../uuid';
 import { getState, setState, useEditor } from './store';
 
+/** Enter or leave Zone Edit mode. Outside it, zones can't be clicked, drawn or reshaped. */
+export function setZoneEdit(on: boolean) {
+  const s = getState();
+  if (on && !s.canEdit) return;
+  setState(
+    on
+      ? { zoneEdit: true, armed: null, boxMode: false, selection: [], tool: null }
+      : {
+          zoneEdit: false,
+          selectedZone: null,
+          tool: s.tool === 'zone' ? null : s.tool,
+        },
+  );
+}
+
 /* ---------- zone writes (optimistic, no undo) ---------- */
 
 export async function saveZone(z: Zone) {
