@@ -1,6 +1,9 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { findDuplicates, type Marker } from '@sixpoint/shared';
+import { formatFeet } from '@sixpoint/shared';
 import { changeType, deleteMarkers, editMarkers } from './ops';
+import { ZoneEditor } from './ZoneDialogs';
+import { useClosets, useSummary } from './zones';
 import { colorOf, getState, setState, tagOf, typeOf, useEditor } from './store';
 
 /** Right panel: selected marker editor on top, current floor's schedule below (R-40..R-48). */
@@ -55,7 +58,10 @@ function useAutoField(value: string, commit: (v: string) => void, delay = 400) {
 function MarkerEditor() {
   const selection = useEditor((s) => s.selection);
   const markers = useEditor((s) => s.markers);
+  const selectedZone = useEditor((s) => (s.selectedZone ? s.zones[s.selectedZone] : null));
   const sel = selection.map((id) => markers[id]).filter(Boolean);
+  if (!sel.length && selectedZone)
+    return <ZoneEditor key={selectedZone.id + selectedZone.updatedAt} zone={selectedZone} />;
   if (!sel.length)
     return (
       <section className="editor-card empty">
@@ -205,12 +211,82 @@ function SingleEditor({ m }: { m: Marker }) {
         </label>
         <textarea id={`${ids}-notes`} rows={3} disabled={!canEdit} {...notes} maxLength={5000} />
       </div>
+      <Cabling m={m} />
       {canEdit && (
         <button className="btn btn-danger-ghost btn-block" onClick={() => deleteMarkers([m.id])}>
           Delete {tagOf(m)}
         </button>
       )}
     </section>
+  );
+}
+
+/** Zone, equipment closet, wires and approximate run length for one device. */
+function Cabling({ m }: { m: Marker }) {
+  const canEdit = useEditor((s) => s.canEdit);
+  const zones = useEditor((s) => s.zones);
+  const wireTypes = useEditor((s) => s.wireTypes);
+  const t = typeOf(m.typeId);
+  const closets = useClosets();
+  const summary = useSummary();
+  const run = summary.runs.get(m.id);
+  const zoneId = summary.zoneOf.get(m.id);
+  const zone = zoneId ? zones[zoneId] : null;
+  const wires = (t?.wires ?? []).map((w) => ({
+    ...w,
+    name: wireTypes.find((x) => x.id === w.wireTypeId)?.name ?? '?',
+  }));
+  const floors = useEditor((s) => s.floors);
+  const floorName = (id: string) => floors.find((f) => f.id === id)?.name ?? '';
+  return (
+    <div className="cabling">
+      <div className="cabling-row">
+        <span className="muted small">Zone</span>
+        <span>{zone ? zone.name : <span className="muted">Not in a zone</span>}</span>
+      </div>
+      <div className="cabling-row">
+        <span className="muted small">Closet</span>
+        {closets.length > 1 && canEdit ? (
+          <select
+            aria-label="Equipment closet"
+            value={m.closetZoneId && closets.some((c) => c.id === m.closetZoneId) ? m.closetZoneId : ''}
+            onChange={(e) => editMarkers([m.id], { closetZoneId: e.target.value || null }, 'closet')}
+          >
+            <option value="">Default · {closets[0].name}</option>
+            {closets.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name} ({floorName(c.floorId)})
+              </option>
+            ))}
+          </select>
+        ) : (
+          <span>{closets[0] ? closets[0].name : <span className="muted">No equipment closet yet</span>}</span>
+        )}
+      </div>
+      <div className="cabling-row">
+        <span className="muted small">Wires</span>
+        <span>
+          {wires.length ? (
+            wires.map((w) => `${w.count}× ${w.name}`).join(', ')
+          ) : (
+            <span className="muted">None</span>
+          )}
+        </span>
+      </div>
+      {wires.length > 0 && (
+        <div className="cabling-row">
+          <span className="muted small">Run</span>
+          {run?.lengthFt != null ? (
+            <span className="mono run-len">
+              ≈ {formatFeet(run.lengthFt)}
+              {wires.reduce((n, w) => n + w.count, 0) > 1 && <span className="muted small"> each</span>}
+            </span>
+          ) : (
+            <span className="warn small">{run?.reason ?? 'Not computed'}</span>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -298,6 +374,7 @@ function Schedule() {
   const select = (m: Marker) => {
     const s = getState();
     setState({
+      selectedZone: null,
       selection: [m.id],
       floorId: m.floorId,
       focus: { id: m.id, n: (s.focus?.n ?? 0) + 1 },

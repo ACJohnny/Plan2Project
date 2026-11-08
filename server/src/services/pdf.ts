@@ -4,7 +4,16 @@ import path from 'node:path';
 import fontkit from '@pdf-lib/fontkit';
 import { PDFDocument, rgb, type PDFFont, type PDFImage, type PDFPage } from 'pdf-lib';
 import sharp from 'sharp';
-import { isoDate, sortForSchedule, SPECTRUM, type ExportMarker, type ExportType } from '@sixpoint/shared';
+import {
+  AUDIO_FORMAT_LABEL,
+  centroid,
+  isoDate,
+  sortForSchedule,
+  SPECTRUM,
+  type ExportMarker,
+  type ExportType,
+  type ProjectSummary,
+} from '@sixpoint/shared';
 import type { Storage } from '../lib/storage';
 import { woffToSfnt } from '../lib/woff';
 import {
@@ -56,6 +65,7 @@ const MUTED = hex('#6b6475');
 const RULE = hex('#d9d4dd');
 const PLUM = hex('#5b1762');
 const WHITE = rgb(1, 1, 1);
+const ACCENT = hex('#c4105c');
 
 /** pdf-lib fonts can't encode characters outside the subset files; replace them. */
 function safe(s: string): string {
@@ -71,9 +81,20 @@ export interface PdfInput {
     imagePath: string;
     widthPx: number;
     heightPx: number;
+    riserX?: number | null;
+    riserY?: number | null;
   }[];
   types: Map<string, ExportType>;
   markers: ExportMarker[];
+  zones?: {
+    id: string;
+    floorId: string;
+    name: string;
+    kind: 'room' | 'closet';
+    points: [number, number][];
+  }[];
+  summary?: ProjectSummary;
+  extraWireFt?: number;
   logoPath: string | null;
   date?: Date;
 }
@@ -177,6 +198,42 @@ export async function buildPdf(storage: Storage, input: PdfInput): Promise<Uint8
       borderWidth: 0.5,
     });
 
+    // zones (rooms and equipment closets) under the markers
+    for (const z of (input.zones ?? []).filter((zz) => zz.floorId === floor.id && zz.points.length >= 3)) {
+      const closet = z.kind === 'closet';
+      const d =
+        z.points
+          .map(([px, py], i) => `${i ? 'L' : 'M'}${(px * rect.w).toFixed(2)},${(py * rect.h).toFixed(2)}`)
+          .join(' ') + ' Z';
+      page.drawSvgPath(d, {
+        x: rect.x,
+        y: rect.y + rect.h,
+        color: closet ? ACCENT : PLUM,
+        opacity: closet ? 0.1 : 0.05,
+        borderColor: closet ? ACCENT : PLUM,
+        borderWidth: closet ? 1.2 : 0.7,
+        borderOpacity: 0.7,
+      });
+      const [cx, cy] = centroid(z.points);
+      const pt = markerPoint(rect, cx, cy);
+      const label = closet ? `EQ · ${z.name}` : z.name;
+      const lw = w(label, F.head, 7.5);
+      text(page, label, pt.x - lw / 2, pt.y + 7, 7.5, F.head, closet ? ACCENT : PLUM);
+    }
+    if (floor.riserX != null && floor.riserY != null) {
+      const rp = markerPoint(rect, floor.riserX, floor.riserY);
+      page.drawRectangle({
+        x: rp.x - 5,
+        y: rp.y - 5,
+        width: 10,
+        height: 10,
+        color: INK,
+        borderColor: WHITE,
+        borderWidth: 0.6,
+      });
+      text(page, 'R', rp.x - w('R', F.monoBold, 6.5) / 2, rp.y - 2.3, 6.5, F.monoBold, WHITE);
+    }
+
     // markers: white tag on category color, constant size
     for (const m of sortForSchedule(ms, input.types)) {
       const t = input.types.get(m.typeId);
@@ -207,6 +264,10 @@ export async function buildPdf(storage: Storage, input: PdfInput): Promise<Uint8
 
   /* ---------- totals ---------- */
   drawTotals(doc, input, F, text, w);
+
+  /* ---------- cable + audio summary ---------- */
+  if (input.summary && (input.summary.wires.length || input.summary.audioZones.length))
+    drawSummary(doc, input, input.summary, F, text, w);
 
   /* ---------- page numbers ---------- */
   const pages = doc.getPages();
@@ -493,4 +554,93 @@ function drawTotals(
       y -= isTotal ? rowH + 4 : rowH;
     }
   });
+}
+
+function drawSummary(
+  doc: PDFDocument,
+  input: PdfInput,
+  sum: ProjectSummary,
+  F: Record<FontKey, PDFFont>,
+  text: TextFn,
+  w: WidthFn,
+) {
+  const P = LETTER_PORTRAIT;
+  const M = 36;
+  let page = doc.addPage([P.width, P.height]);
+  let y = P.height - M;
+  const need = (h: number) => {
+    if (y - h < M + 14) {
+      page = doc.addPage([P.width, P.height]);
+      y = P.height - M;
+    }
+  };
+  text(page, 'SUMMARY', M, y - 8, 7.5, F.sansBold, PLUM);
+  text(page, `${input.project.name} — cable and audio summary`, M, y - 28, 16, F.headBold);
+  y -= 48;
+
+  if (sum.wires.length) {
+    text(page, 'Cable by wire type', M, y - 12, 12, F.head);
+    const extra = input.extraWireFt ?? 0;
+    const note = `Approximate: right-angle runs to the equipment closet, risers between floors, plus ${extra} ft extra per run.`;
+    text(page, note, M, y - 26, 7.5, F.sans, MUTED);
+    y -= 34;
+    const cols = [M + 4, M + 240, M + 330, M + 440];
+    page.drawRectangle({ x: M, y: y - 18, width: P.width - M * 2, height: 18, color: hex('#f3eff5') });
+    ['WIRE', 'RUNS', 'TOTAL', 'NOT COMPUTED'].forEach((h, i) =>
+      text(page, h, cols[i], y - 12, 7, F.sansBold, PLUM),
+    );
+    y -= 18;
+    for (const t of sum.wires) {
+      need(16);
+      text(page, t.name, cols[0], y - 11, 9, F.sans);
+      text(page, String(t.runs), cols[1], y - 11, 9, F.mono);
+      text(page, `${Math.round(t.totalFt).toLocaleString('en-US')} ft`, cols[2], y - 11, 9, F.monoBold);
+      text(
+        page,
+        t.unresolved ? String(t.unresolved) : '–',
+        cols[3],
+        y - 11,
+        9,
+        F.mono,
+        t.unresolved ? INK : MUTED,
+      );
+      page.drawLine({
+        start: { x: M, y: y - 16 },
+        end: { x: P.width - M, y: y - 16 },
+        thickness: 0.4,
+        color: RULE,
+      });
+      y -= 16;
+    }
+    y -= 20;
+  }
+
+  if (sum.audioZones.length) {
+    need(40);
+    text(page, 'Audio zones', M, y - 12, 12, F.head);
+    y -= 24;
+    const floorName = new Map(input.floors.map((f) => [f.id, f.name]));
+    for (const g of sum.audioZones) {
+      need(34);
+      const label = g.format ? AUDIO_FORMAT_LABEL[g.format] : 'Format not set';
+      text(
+        page,
+        `${label} — ${g.zones.length} zone${g.zones.length === 1 ? '' : 's'}`,
+        M,
+        y - 12,
+        10,
+        F.sansBold,
+      );
+      y -= 18;
+      for (const z of g.zones) {
+        need(14);
+        text(page, z.name, M + 12, y - 10, 9, F.sans);
+        const meta = `${floorName.get(z.floorId) ?? ''} · ${z.devices} audio device${z.devices === 1 ? '' : 's'}`;
+        text(page, meta, M + 220, y - 10, 8, F.sans, MUTED);
+        y -= 14;
+      }
+      y -= 8;
+    }
+  }
+  void w;
 }

@@ -1,4 +1,4 @@
-import type { Floor, Marker, Upload, User } from '@sixpoint/shared';
+import type { Floor, Marker, Upload, User, Zone } from '@sixpoint/shared';
 import type * as s from '../db/schema';
 import { fileUrl } from './storage';
 
@@ -29,6 +29,12 @@ export function floorDto(f: typeof s.floors.$inferSelect): Floor {
     widthPx: f.widthPx,
     heightPx: f.heightPx,
     previewWidthPx: f.previewWidthPx,
+    renderDpi: f.renderDpi,
+    ftPerPx: f.ftPerPx,
+    scaleLabel: f.scaleLabel,
+    floorHeightFt: f.floorHeightFt,
+    riserX: f.riserX,
+    riserY: f.riserY,
     updatedAt: f.updatedAt.toISOString(),
   };
 }
@@ -45,6 +51,7 @@ export function markerDto(m: typeof s.markers.$inferSelect): Marker {
     room: m.room,
     mountHeight: m.mountHeight,
     notes: m.notes,
+    closetZoneId: m.closetZoneId,
     createdBy: m.createdBy,
     updatedBy: m.updatedBy,
     updatedAt: m.updatedAt.toISOString(),
@@ -70,6 +77,19 @@ export function uploadDto(u: typeof s.uploads.$inferSelect): Upload {
       widthPx: p.widthPx,
       heightPx: p.heightPx,
     })),
+  };
+}
+
+export function zoneDto(z: typeof s.zones.$inferSelect): Zone {
+  return {
+    id: z.id,
+    projectId: z.projectId,
+    floorId: z.floorId,
+    name: z.name,
+    kind: z.kind,
+    points: z.points,
+    audioFormat: z.audioFormat,
+    updatedAt: z.updatedAt.toISOString(),
   };
 }
 

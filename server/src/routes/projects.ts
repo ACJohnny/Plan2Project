@@ -15,7 +15,7 @@ import {
   RenumberResponse,
   UpdateProjectBody,
 } from '@sixpoint/shared';
-import { activity, deviceTypes, floors, markers, projects, users } from '../db/schema';
+import { activity, deviceTypes, floors, markers, projects, users, zones } from '../db/schema';
 import { HttpError, requireRole, requireUser } from '../lib/auth';
 import { floorDto, markerDto } from '../lib/dto';
 import { getProjectDto, listProjects, requireProject, touchProject } from '../services/projects';
@@ -147,6 +147,7 @@ export const projectRoutes: FastifyPluginAsyncZod = async (app) => {
             address: src.address,
             jobNumber: src.jobNumber,
             notes: src.notes,
+            extraWireFt: src.extraWireFt,
             createdBy: req.user!.id,
             updatedBy: req.user!.id,
           })
@@ -168,6 +169,26 @@ export const projectRoutes: FastifyPluginAsyncZod = async (app) => {
             updatedAt: new Date(),
           });
         }
+        // zones (rooms, closets) belong to the sheets, so they always come along
+        const zoneMap = new Map<string, string>();
+        const zs = await tx
+          .select()
+          .from(zones)
+          .where(and(eq(zones.projectId, src.id), isNull(zones.deletedAt)));
+        for (const z of zs) {
+          if (!floorMap.has(z.floorId)) continue;
+          const id = randomUUID();
+          zoneMap.set(z.id, id);
+          await tx.insert(zones).values({
+            ...z,
+            id,
+            projectId: p.id,
+            floorId: floorMap.get(z.floorId)!,
+            createdBy: req.user!.id,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          });
+        }
         if (req.body.withMarkers && fl.length) {
           const ms = await tx
             .select()
@@ -180,6 +201,7 @@ export const projectRoutes: FastifyPluginAsyncZod = async (app) => {
               id: randomUUID(),
               projectId: p.id,
               floorId: floorMap.get(m.floorId)!,
+              closetZoneId: m.closetZoneId ? (zoneMap.get(m.closetZoneId) ?? null) : null,
               createdBy: req.user!.id,
               updatedBy: req.user!.id,
               createdAt: new Date(),
@@ -317,6 +339,12 @@ function summarize(action: string, before: any, after: any, tagOf: (s: any) => s
       return `Deleted ${tagOf(before)}`;
     case 'restore':
       return `Restored ${tagOf(after)}`;
+    case 'zone.create':
+      return `Added ${after?.kind === 'closet' ? 'equipment closet' : 'zone'} ${after?.name ?? ''}`;
+    case 'zone.edit':
+      return `Edited zone ${after?.name ?? ''}`;
+    case 'zone.delete':
+      return `Deleted zone ${before?.name ?? ''}`;
     case 'renumber':
       return `Renumbered ${after?.count ?? 0} devices`;
     case 'edit': {

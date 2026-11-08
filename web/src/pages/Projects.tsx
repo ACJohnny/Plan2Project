@@ -214,6 +214,7 @@ export function ProjectDialog({
     address: project?.address ?? '',
     jobNumber: project?.jobNumber ?? '',
     notes: project?.notes ?? '',
+    extraWireFt: String(project?.extraWireFt ?? 0),
   });
   const [busy, setBusy] = useState(false);
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) =>
@@ -222,9 +223,13 @@ export function ProjectDialog({
     e.preventDefault();
     setBusy(true);
     try {
+      const { extraWireFt, ...fields } = f;
+      const extra = Math.max(0, Number(extraWireFt) || 0);
       const p = project
-        ? await api.patch<Project>(`/api/projects/${project.id}`, f)
-        : await api.post<Project>('/api/projects', f);
+        ? await api.patch<Project>(`/api/projects/${project.id}`, { ...fields, extraWireFt: extra })
+        : await api.patch<Project>(`/api/projects/${(await api.post<Project>('/api/projects', fields)).id}`, {
+            extraWireFt: extra,
+          });
       onSaved(p);
       onClose();
     } catch (e: any) {
@@ -256,6 +261,20 @@ export function ProjectDialog({
           <span>Notes</span>
           <textarea rows={3} value={f.notes} onChange={set('notes')} />
         </label>
+        <label className="field">
+          <span>Extra wire length per run (ft)</span>
+          <input
+            type="number"
+            min={0}
+            max={1000}
+            step={1}
+            value={f.extraWireFt}
+            onChange={set('extraWireFt')}
+          />
+        </label>
+        <p className="muted small field-note">
+          Added to every cable run for service loops, drops and termination.
+        </p>
         <div className="form-actions span-2">
           <button type="button" className="btn" onClick={onClose}>
             Cancel

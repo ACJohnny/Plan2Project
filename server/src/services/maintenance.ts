@@ -22,6 +22,7 @@ export async function bootstrapAdmin(db: DB, cfg: Config): Promise<'created' | '
 export async function purgeDeleted(db: DB, days = 30) {
   const cutoff = sql`now() - make_interval(days => ${days})`;
   const m = await db.execute(sql`delete from markers where deleted_at < ${cutoff}`);
+  await db.execute(sql`delete from zones where deleted_at < ${cutoff}`);
   const f = await db.execute(sql`delete from floors where deleted_at < ${cutoff}`);
   const p = await db.execute(sql`delete from projects where deleted_at < ${cutoff}`);
   await db.execute(sql`delete from activity where at < now() - interval '365 days'`);

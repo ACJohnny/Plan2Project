@@ -344,6 +344,18 @@ function LibraryAdmin() {
                   <span className="lib-type-name">
                     {t.name}
                     {t.defaultModel && <span className="muted small"> · {t.defaultModel}</span>}
+                    {t.wires.length > 0 && (
+                      <span className="muted small wire-list">
+                        {' '}
+                        ·{' '}
+                        {t.wires
+                          .map(
+                            (w) =>
+                              `${w.count}× ${lib.wireTypes.find((x) => x.id === w.wireTypeId)?.name ?? '?'}`,
+                          )
+                          .join(', ')}
+                      </span>
+                    )}
                     {t.retiredAt && <span className="pill">Retired</span>}
                   </span>
                   <span className="muted small mono">{t.inUse} in use</span>
@@ -389,6 +401,7 @@ function LibraryAdmin() {
           </div>
         );
       })}
+      <WireTypesAdmin lib={lib} onChange={load} />
       {editType && (
         <TypeDialog
           lib={lib}
@@ -504,6 +517,7 @@ function TypeDialog({
     defaultModel: type?.defaultModel ?? '',
     defaultNotes: type?.defaultNotes ?? '',
   });
+  const [wires, setWires] = useState(type?.wires ?? []);
   const codeOk = /^[A-Z]{1,6}$/.test(f.code);
   const dup = lib.types.find((t) => t.code === f.code && t.id !== type?.id);
   return (
@@ -513,8 +527,12 @@ function TypeDialog({
         onSubmit={async (e) => {
           e.preventDefault();
           try {
-            if (type) await api.patch(`/api/device-library/types/${type.id}`, f);
-            else await api.post('/api/device-library/types', f);
+            const clean = wires.filter((w) => w.wireTypeId && w.count > 0);
+            if (type) await api.patch(`/api/device-library/types/${type.id}`, { ...f, wires: clean });
+            else {
+              const t = await api.post<DeviceType>('/api/device-library/types', f);
+              if (clean.length) await api.patch(`/api/device-library/types/${t.id}`, { wires: clean });
+            }
             onDone();
             onClose();
           } catch (err: any) {
@@ -570,6 +588,56 @@ function TypeDialog({
           />
           <span className="muted small">Both are copied into a new marker's notes when it's placed.</span>
         </label>
+        <fieldset className="span-2 wires-edit">
+          <legend>Wires to the equipment closet</legend>
+          {wires.map((w, i) => (
+            <div key={i} className="wire-row">
+              <select
+                aria-label="Wire type"
+                value={w.wireTypeId}
+                onChange={(e) =>
+                  setWires(wires.map((x, j) => (j === i ? { ...x, wireTypeId: e.target.value } : x)))
+                }
+              >
+                {lib.wireTypes.map((wt) => (
+                  <option key={wt.id} value={wt.id}>
+                    {wt.name}
+                  </option>
+                ))}
+              </select>
+              <input
+                aria-label="Count"
+                type="number"
+                min={1}
+                max={20}
+                value={w.count}
+                onChange={(e) =>
+                  setWires(
+                    wires.map((x, j) =>
+                      j === i ? { ...x, count: Math.max(1, Number(e.target.value) || 1) } : x,
+                    ),
+                  )
+                }
+              />
+              <button
+                type="button"
+                className="icon-btn"
+                aria-label="Remove wire"
+                onClick={() => setWires(wires.filter((_, j) => j !== i))}
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            className="btn btn-sm"
+            disabled={!lib.wireTypes.length}
+            onClick={() => setWires([...wires, { wireTypeId: lib.wireTypes[0].id, count: 1 }])}
+          >
+            + Add wire
+          </button>
+        </fieldset>
         <div className="form-actions span-2">
           <button type="button" className="btn" onClick={onClose}>
             Cancel
@@ -680,5 +748,93 @@ function TokensAdmin() {
         </table>
       </div>
     </section>
+  );
+}
+
+function WireTypesAdmin({ lib, onChange }: { lib: Library; onChange: () => void }) {
+  const [name, setName] = useState('');
+  const [editing, setEditing] = useState<{ id: string; name: string } | null>(null);
+  const act = async (fn: () => Promise<unknown>) => {
+    try {
+      await fn();
+      onChange();
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+  };
+  return (
+    <div className="lib-cat">
+      <div className="lib-cat-head">
+        <h3>Wire types</h3>
+        <span className="muted small">Assigned to device types above; used for cable-run totals.</span>
+      </div>
+      <ul className="lib-types">
+        {lib.wireTypes.map((w) => (
+          <li key={w.id}>
+            {editing?.id === w.id ? (
+              <form
+                className="inline-form tight"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  act(() => api.patch(`/api/device-library/wire-types/${w.id}`, { name: editing.name })).then(
+                    () => setEditing(null),
+                  );
+                }}
+              >
+                <input
+                  aria-label="Wire type name"
+                  value={editing.name}
+                  onChange={(e) => setEditing({ ...editing, name: e.target.value })}
+                />
+                <button className="btn btn-sm btn-primary">Save</button>
+                <button type="button" className="btn btn-sm" onClick={() => setEditing(null)}>
+                  Cancel
+                </button>
+              </form>
+            ) : (
+              <>
+                <span className="lib-type-name">{w.name}</span>
+                <span className="muted small mono">
+                  {w.inUse} type{w.inUse === 1 ? '' : 's'}
+                </span>
+                <div className="row-actions">
+                  <button className="btn btn-sm" onClick={() => setEditing({ id: w.id, name: w.name })}>
+                    Rename
+                  </button>
+                  <button
+                    className="btn btn-sm btn-danger-ghost"
+                    onClick={() =>
+                      (w.inUse === 0 ||
+                        confirm(`${w.name} is assigned to ${w.inUse} device type(s). Delete it anyway?`)) &&
+                      act(() => api.del(`/api/device-library/wire-types/${w.id}`))
+                    }
+                  >
+                    Delete
+                  </button>
+                </div>
+              </>
+            )}
+          </li>
+        ))}
+      </ul>
+      <form
+        className="inline-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          act(() => api.post('/api/device-library/wire-types', { name })).then(() => setName(''));
+        }}
+      >
+        <label className="field grow">
+          <span>New wire type</span>
+          <input
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. HDMI, Cat6A, 18/2"
+          />
+        </label>
+        <button className="btn">Add wire type</button>
+      </form>
+    </div>
   );
 }

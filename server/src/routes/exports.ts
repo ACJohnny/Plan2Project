@@ -1,16 +1,48 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
-import { and, asc, eq, isNull } from 'drizzle-orm';
 import { z } from 'zod';
-import { deviceCsv, deviceListText, exportFilename, Id, type ExportType } from '@sixpoint/shared';
-import { floors, markers } from '../db/schema';
+import {
+  AUDIO_FORMAT_LABEL,
+  deviceCsv,
+  deviceListText,
+  exportFilename,
+  Id,
+  type CsvExtras,
+} from '@sixpoint/shared';
 import { requireUser } from '../lib/auth';
 import { buildPdf } from '../services/pdf';
-import { requireProject } from '../services/projects';
-import { loadLibrary } from './library';
+import { loadProjectData } from '../services/summary';
 
-/** Outputs for every role (R-56..R-59). */
+const Summary = z.object({
+  extraWireFt: z.number(),
+  wires: z.array(
+    z.object({
+      wireTypeId: Id,
+      name: z.string(),
+      runs: z.number(),
+      totalFt: z.number(),
+      unresolved: z.number(),
+    }),
+  ),
+  audioZones: z.array(
+    z.object({
+      format: z.string().nullable(),
+      label: z.string(),
+      zones: z.array(z.object({ id: Id, name: z.string(), floor: z.string(), devices: z.number() })),
+    }),
+  ),
+  runs: z.array(
+    z.object({
+      markerId: Id,
+      closetZoneId: Id.nullable(),
+      lengthFt: z.number().nullable(),
+      reason: z.string().nullable(),
+    }),
+  ),
+});
+
+/** Outputs for every role (R-56..R-59) plus the cable / audio-zone summary. */
 export const exportRoutes: FastifyPluginAsyncZod = async (app) => {
   const { db, storage, cfg } = app.ctx;
   const Q = z.object({
@@ -19,37 +51,17 @@ export const exportRoutes: FastifyPluginAsyncZod = async (app) => {
   const P = z.object({ id: Id });
 
   async function load(projectId: string, floorFilter?: string) {
-    const project = await requireProject(db, projectId);
-    let fl = await db
-      .select()
-      .from(floors)
-      .where(and(eq(floors.projectId, projectId), isNull(floors.deletedAt)))
-      .orderBy(asc(floors.sortOrder), asc(floors.id));
-    if (floorFilter) {
-      const want = new Set(floorFilter.split(',').map((s) => s.trim()));
-      fl = fl.filter((f) => want.has(f.id));
-    }
-    const ms = await db
-      .select()
-      .from(markers)
-      .where(and(eq(markers.projectId, projectId), isNull(markers.deletedAt)));
-    const lib = await loadLibrary(db);
-    const cats = new Map(lib.categories.map((c) => [c.id, c]));
-    const types = new Map<string, ExportType>(
-      lib.types.map((t, i) => [
-        t.id,
-        {
-          id: t.id,
-          code: t.code,
-          name: t.name,
-          category: cats.get(t.categoryId)?.name ?? '',
-          color: cats.get(t.categoryId)?.color ?? '#6b7280',
-          order: i,
-        },
-      ]),
-    );
-    const floorIds = new Set(fl.map((f) => f.id));
-    return { project, floors: fl, types, markers: ms.filter((m) => floorIds.has(m.floorId)) };
+    const d = await loadProjectData(db, projectId);
+    if (!floorFilter) return d;
+    const want = new Set(floorFilter.split(',').map((s) => s.trim()));
+    const fl = d.floors.filter((f) => want.has(f.id));
+    const ids = new Set(fl.map((f) => f.id));
+    return {
+      ...d,
+      floors: fl,
+      markers: d.markers.filter((m) => ids.has(m.floorId)),
+      zones: d.zones.filter((zz) => ids.has(zz.floorId)),
+    };
   }
 
   const disposition = (name: string) => `attachment; filename="${name}"`;
@@ -71,9 +83,25 @@ export const exportRoutes: FastifyPluginAsyncZod = async (app) => {
     { schema: { tags: ['exports'], params: P, querystring: Q }, preHandler: requireUser },
     async (req, reply) => {
       const d = await load(req.params.id, req.query.floors);
+      const zoneName = new Map(d.zones.map((zz) => [zz.id, zz.name]));
+      const wireName = new Map(d.lib.wireTypes.map((w) => [w.id, w.name]));
+      const typeWires = new Map(d.lib.types.map((t) => [t.id, t.wires]));
+      const extras = new Map<string, CsvExtras>();
+      for (const m of d.markers) {
+        const r = d.summary.runs.get(m.id);
+        const zid = d.summary.zoneOf.get(m.id);
+        extras.set(m.id, {
+          zone: zid ? (zoneName.get(zid) ?? '') : '',
+          closet: r?.closetId ? (zoneName.get(r.closetId) ?? '') : '',
+          wires: (typeWires.get(m.typeId) ?? [])
+            .map((w) => `${w.count}× ${wireName.get(w.wireTypeId) ?? '?'}`)
+            .join('; '),
+          runFt: r?.lengthFt ?? null,
+        });
+      }
       reply.header('Content-Type', 'text/csv; charset=utf-8');
       reply.header('Content-Disposition', disposition(exportFilename(d.project.name, 'csv')));
-      return deviceCsv(d.floors, d.types, d.markers);
+      return deviceCsv(d.floors, d.types, d.markers, extras);
     },
   );
 
@@ -88,11 +116,52 @@ export const exportRoutes: FastifyPluginAsyncZod = async (app) => {
         floors: d.floors,
         types: d.types,
         markers: d.markers,
+        zones: d.zones,
+        summary: d.summary,
+        extraWireFt: d.project.extraWireFt,
         logoPath: fs.existsSync(logo) ? logo : null,
       });
       reply.header('Content-Type', 'application/pdf');
       reply.header('Content-Disposition', disposition(exportFilename(d.project.name, 'pdf')));
       return reply.send(Buffer.from(bytes));
+    },
+  );
+
+  app.get(
+    '/api/projects/:id/summary',
+    {
+      schema: {
+        tags: ['exports'],
+        params: P,
+        description:
+          'Cable totals per wire type, audio zones by format, and the run length for every device.',
+        response: { 200: Summary },
+      },
+      preHandler: requireUser,
+    },
+    async (req) => {
+      const d = await load(req.params.id);
+      const floorName = new Map(d.floors.map((f) => [f.id, f.name]));
+      return {
+        extraWireFt: d.project.extraWireFt,
+        wires: d.summary.wires,
+        audioZones: d.summary.audioZones.map((g) => ({
+          format: g.format,
+          label: g.format ? AUDIO_FORMAT_LABEL[g.format] : 'Not set',
+          zones: g.zones.map((zz) => ({
+            id: zz.id,
+            name: zz.name,
+            floor: floorName.get(zz.floorId) ?? '',
+            devices: zz.devices,
+          })),
+        })),
+        runs: [...d.summary.runs].map(([markerId, r]) => ({
+          markerId,
+          closetZoneId: r.closetId,
+          lengthFt: r.lengthFt,
+          reason: r.reason,
+        })),
+      };
     },
   );
 };

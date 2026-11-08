@@ -16,6 +16,7 @@ import {
   RenumberDialog,
 } from './Dialogs';
 import { planCtl } from './planCtl';
+import { SummaryDialog } from './Summary';
 import { getState, setState, useEditor } from './store';
 import { useUploads } from './Uploads';
 
@@ -25,7 +26,7 @@ export function Toolbar() {
   const { can } = useAuth();
   const nav = useNavigate();
   const [dialog, setDialog] = useState<
-    null | 'settings' | 'renumber' | 'history' | 'pdf' | 'dup' | 'delete' | 'floor'
+    null | 'settings' | 'renumber' | 'summary' | 'history' | 'pdf' | 'dup' | 'delete' | 'floor'
   >(null);
   const [copyText, setCopyText] = useState<string | null>(null);
   const floor = useEditor((s) => s.floors.find((f) => f.id === s.floorId));
@@ -54,6 +55,7 @@ export function Toolbar() {
           {can('editor') && floor && <MenuItem onClick={() => setDialog('floor')}>Floor settings…</MenuItem>}
           {can('editor') && <MenuItem onClick={() => setDialog('settings')}>Project settings…</MenuItem>}
           {can('editor') && <MenuItem onClick={() => setDialog('renumber')}>Renumber…</MenuItem>}
+          <MenuItem onClick={() => setDialog('summary')}>Summary (cable, audio zones)</MenuItem>
           <MenuItem onClick={() => setDialog('history')}>History</MenuItem>
           <div className="menu-sep" role="separator" />
           <MenuItem onClick={() => copyDeviceList(setCopyText)}>Copy device list</MenuItem>
@@ -92,6 +94,7 @@ export function Toolbar() {
       )}
       {dialog === 'renumber' && <RenumberDialog onClose={() => setDialog(null)} />}
       {dialog === 'history' && <HistoryDialog onClose={() => setDialog(null)} />}
+      {dialog === 'summary' && <SummaryDialog onClose={() => setDialog(null)} />}
       {dialog === 'pdf' && <ExportPdfDialog onClose={() => setDialog(null)} />}
       {dialog === 'floor' && floor && <FloorDialog floor={floor} onClose={() => setDialog(null)} />}
       {dialog === 'dup' && (

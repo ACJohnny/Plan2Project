@@ -13,7 +13,7 @@ import {
   UpdateFloorBody,
   Upload,
 } from '@sixpoint/shared';
-import { floors, markers, sheetRevisions, uploads, users } from '../db/schema';
+import { floors, markers, sheetRevisions, uploads, users, zones } from '../db/schema';
 import { HttpError, requireRole, requireUser } from '../lib/auth';
 import { floorDto, uploadDto } from '../lib/dto';
 import { fileUrl } from '../lib/storage';
@@ -246,6 +246,10 @@ export const floorRoutes: FastifyPluginAsyncZod = async (app) => {
       const now = new Date();
       const removed = await db.transaction(async (tx) => {
         await tx.update(floors).set({ deletedAt: now }).where(eq(floors.id, f.id));
+        await tx
+          .update(zones)
+          .set({ deletedAt: now })
+          .where(and(eq(zones.floorId, f.id), isNull(zones.deletedAt)));
         return tx
           .update(markers)
           .set({ deletedAt: now, updatedBy: req.user!.id })
@@ -369,6 +373,12 @@ export const floorRoutes: FastifyPluginAsyncZod = async (app) => {
             widthPx: pg.widthPx,
             heightPx: pg.heightPx,
             previewWidthPx: pg.previewWidthPx!,
+            // same drawing at another resolution: keep the real-world scale
+            ftPerPx: f.ftPerPx ? (f.ftPerPx * f.widthPx) / pg.widthPx : null,
+            renderDpi:
+              staged.kind === 'pdf'
+                ? cfg.PDF_RENDER_DPI
+                : f.renderDpi && Math.round((f.renderDpi * pg.widthPx) / f.widthPx),
             updatedAt: new Date(),
           })
           .where(eq(floors.id, f.id))

@@ -72,6 +72,8 @@ export const projects = pgTable(
     updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: created(),
     updatedAt: tstz('updated_at').notNull().defaultNow(),
+    /** extra wire added to every cable run, feet */
+    extraWireFt: doublePrecision('extra_wire_ft').notNull().default(0),
     /** Phase 2: tokenized read-only share link */
     shareToken: text('share_token').unique(),
   },
@@ -95,6 +97,12 @@ export const floors = pgTable(
     widthPx: integer('width_px').notNull(),
     heightPx: integer('height_px').notNull(),
     previewWidthPx: integer('preview_width_px').notNull(),
+    renderDpi: integer('render_dpi'),
+    ftPerPx: doublePrecision('ft_per_px'),
+    scaleLabel: text('scale_label').notNull().default(''),
+    floorHeightFt: doublePrecision('floor_height_ft').notNull().default(10),
+    riserX: doublePrecision('riser_x'),
+    riserY: doublePrecision('riser_y'),
     uploadId: uuid('upload_id'),
     uploadPage: integer('upload_page'),
     updatedAt: tstz('updated_at').notNull().defaultNow(),
@@ -196,6 +204,7 @@ export const markers = pgTable(
     room: text('room').notNull().default(''),
     mountHeight: text('mount_height').notNull().default(''),
     notes: text('notes').notNull().default(''),
+    closetZoneId: uuid('closet_zone_id'),
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
     updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: created(),
@@ -223,4 +232,49 @@ export const activity = pgTable(
     at: tstz('at').notNull().defaultNow(),
   },
   (t) => [index('activity_project_idx').on(t.projectId, t.at)],
+);
+
+export const wireTypes = pgTable('wire_types', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull().unique(),
+  sortOrder: integer('sort_order').notNull().default(0),
+});
+
+export const deviceTypeWires = pgTable(
+  'device_type_wires',
+  {
+    typeId: uuid('type_id')
+      .notNull()
+      .references(() => deviceTypes.id, { onDelete: 'cascade' }),
+    wireTypeId: uuid('wire_type_id')
+      .notNull()
+      .references(() => wireTypes.id, { onDelete: 'cascade' }),
+    count: integer('count').notNull().default(1),
+  },
+  (t) => [uniqueIndex('device_type_wires_uq').on(t.typeId, t.wireTypeId)],
+);
+
+/** Zones (rooms and equipment closets). Points are 0–1 sheet fractions. */
+export const zones = pgTable(
+  'zones',
+  {
+    id: uuid('id').primaryKey(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    floorId: uuid('floor_id')
+      .notNull()
+      .references(() => floors.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    kind: text('kind', { enum: ['room', 'closet'] })
+      .notNull()
+      .default('room'),
+    points: jsonb('points').$type<[number, number][]>().notNull(),
+    audioFormat: text('audio_format', { enum: ['stereo', '5.0', '5.1', '7.1'] }),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: created(),
+    updatedAt: tstz('updated_at').notNull().defaultNow(),
+    deletedAt: tstz('deleted_at'),
+  },
+  (t) => [index('zones_project_idx').on(t.projectId, t.deletedAt)],
 );

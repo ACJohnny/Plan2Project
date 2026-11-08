@@ -19,6 +19,7 @@ export async function createFloor(
   sheetNumber: string,
   uploadId: string | null,
   page: number | null,
+  renderDpi: number | null = null,
 ) {
   const r = await db.execute(
     sql`select coalesce(max(sort_order), -1) + 1 as n from floors where project_id = ${projectId} and deleted_at is null`,
@@ -33,6 +34,7 @@ export async function createFloor(
       ...sheet,
       uploadId,
       uploadPage: page,
+      renderDpi,
     })
     .returning();
   return f;
@@ -161,7 +163,16 @@ export class PdfJobs {
         sql`select 1 from projects where id = ${up.projectId} and deleted_at is null`,
       );
       if (!live.rows.length) throw new Error('Project was deleted');
-      const f = await createFloor(db, up.projectId, sheet, title.name, title.sheetNumber, id, p);
+      const f = await createFloor(
+        db,
+        up.projectId,
+        sheet,
+        title.name,
+        title.sheetNumber,
+        id,
+        p,
+        cfg.PDF_RENDER_DPI,
+      );
       await touchProject(db, up.projectId, up.uploadedBy);
       pages.push({
         page: p,

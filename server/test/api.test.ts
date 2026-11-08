@@ -316,7 +316,7 @@ describe('projects, uploads and markers', () => {
     expect(csv.status).toBe(200);
     expect(csv.body.charCodeAt(0)).toBe(0xfeff);
     expect(csv.body.slice(1).split('\r\n')[0]).toBe(
-      'floor,sheet,tag,code,type,category,number,room,mount_height,notes,x,y',
+      'floor,sheet,tag,code,type,category,number,room,mount_height,notes,x,y,zone,closet,wires,run_ft',
     );
     expect(csv.headers['content-disposition']).toMatch(
       /harless-residence-device-plan-\d{4}-\d{2}-\d{2}\.csv/,

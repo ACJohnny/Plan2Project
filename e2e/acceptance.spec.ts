@@ -223,7 +223,9 @@ test('PDF has one 11×17 page per floor plus schedule and totals; CSV and device
   const csv = await (await editorApi.get(`/api/projects/${proj.id}/export.csv`)).text();
   expect(csv.charCodeAt(0)).toBe(0xfeff);
   const lines = csv.slice(1).trim().split('\r\n');
-  expect(lines[0]).toBe('floor,sheet,tag,code,type,category,number,room,mount_height,notes,x,y');
+  expect(lines[0]).toBe(
+    'floor,sheet,tag,code,type,category,number,room,mount_height,notes,x,y,zone,closet,wires,run_ft',
+  );
   expect(lines).toHaveLength(4);
 
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);

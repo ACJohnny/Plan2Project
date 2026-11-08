@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import type { Floor, Library, Marker, Project, ProjectEvent } from '@sixpoint/shared';
+import type { Floor, Library, Marker, Project, ProjectEvent, Zone } from '@sixpoint/shared';
 import { api, CLIENT_ID } from '../api';
 import { useAuth } from '../auth';
 import { toast } from '../toast';
@@ -44,10 +44,11 @@ export function EditorPage() {
     let cancelled = false;
     (async () => {
       try {
-        const [p, lib, ms] = await Promise.all([
+        const [p, lib, ms, zs] = await Promise.all([
           api.get<{ project: Project; floors: Floor[] }>(`/api/projects/${id}`),
           api.get<Library>('/api/device-library'),
           api.get<Marker[]>(`/api/projects/${id}/markers`),
+          api.get<Zone[]>(`/api/projects/${id}/zones`),
         ]);
         if (cancelled) return;
         const floors = sortFloors(p.floors);
@@ -57,7 +58,9 @@ export function EditorPage() {
           floorId: floors[0]?.id ?? null,
           categories: lib.categories,
           types: lib.types,
+          wireTypes: lib.wireTypes,
           markers: Object.fromEntries(ms.map((m) => [m.id, m])),
+          zones: Object.fromEntries(zs.map((z) => [z.id, z])),
         });
         document.title = `${p.project.name} · Six Point Markup`;
       } catch (e: any) {
@@ -118,10 +121,21 @@ export function EditorPage() {
       }
       setState({ project: e.project });
     });
+    on('zone.upsert', (e) =>
+      setState({
+        zones: { ...getState().zones, ...Object.fromEntries((e.zones as Zone[]).map((z) => [z.id, z])) },
+      }),
+    );
+    on('zone.delete', (e) => {
+      const s = getState();
+      const zones = { ...s.zones };
+      for (const zid of e.ids) delete zones[zid];
+      setState({ zones, selectedZone: s.selectedZone && zones[s.selectedZone] ? s.selectedZone : null });
+    });
     on('upload.progress', (e) => onUploadProgress(e.upload));
     on('library.update', async () => {
       const lib = await api.get<Library>('/api/device-library');
-      setState({ categories: lib.categories, types: lib.types });
+      setState({ categories: lib.categories, types: lib.types, wireTypes: lib.wireTypes });
     });
     es.addEventListener('presence', (ev) =>
       setState({ presence: JSON.parse((ev as MessageEvent).data).users }),
@@ -140,6 +154,8 @@ export function EditorPage() {
         ]);
         setState({ project: p.project, floors: sortFloors(p.floors) });
         replaceAllMarkers(ms);
+        const zs = await api.get<Zone[]>(`/api/projects/${id}/zones`);
+        setState({ zones: Object.fromEntries(zs.map((z) => [z.id, z])) });
       } catch {
         /* next reconnect will retry */
       }
@@ -186,7 +202,8 @@ export function EditorPage() {
         e.preventDefault();
         deleteMarkers(s.selection);
       } else if (k === 'Escape') {
-        if (s.selection.length) setState({ selection: [] });
+        if (s.tool) setState({ tool: null });
+        else if (s.selectedZone || s.selection.length) setState({ selectedZone: null, selection: [] });
         else if (s.armed || s.boxMode) setState({ armed: null, boxMode: false });
       } else if (k.startsWith('Arrow') && s.selection.length && s.canEdit) {
         e.preventDefault();

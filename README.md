@@ -84,6 +84,18 @@ Roles are enforced on every API route, and the UI hides controls the role can't 
 
 Every change saves as you go. The toolbar shows Saved / Saving… / Offline, changes queued / Save failed. Other people's changes arrive live through Server-Sent Events.
 
+## Zones, equipment closets and cable runs
+
+- **Draw zones:** in the palette, choose **Zones → Draw zone**. Click the corners of a room and finish by clicking the first corner or pressing Enter. Backspace removes the last corner. To draw a rectangle instead, drag. Name the zone and pick **Room** or **Equipment closet**.
+- **Edit zones:** click a zone to select it, then drag its corner handles to reshape it. The side panel edits the name and kind and has a Delete button.
+- **Rooms from zones:** devices placed inside a zone get the zone's name as their Room. Moving a device into another zone updates a Room that was blank or came from the old zone.
+- **Closets:** every device runs to the **first** equipment closet in floor order. When a project has more than one closet, the device panel has a **Closet** picker to choose another.
+- **Wires:** each device type has wires (for example TV = 2× Cat6 + 1× RG6), edited under Admin → Device library. That page also manages the wire types.
+- **Scale:** open Floor settings and pick a drawing scale (PDF pages know their DPI), or click **Calibrate scale** and then two points of a known distance.
+- **Run length:** a right-angle path in the plan to the closet's center. Runs that change floors go device → **riser** (Zones → Set riser on each floor) → the floor-to-floor heights (Floor settings; floors stack in tab order) → riser → closet. The project's **Extra wire length per run** (Project settings) is added to every run.
+- **Audio zones:** a room with audio devices gets an audio format (Stereo, 5.0, 5.1, 7.1).
+- **Summary:** Project menu → **Summary** lists audio zones by format and cable totals per wire type. It also lists devices whose runs can't be measured yet, and why. The same summary is the last page of the PDF. The CSV adds `zone`, `closet`, `wires` and `run_ft` columns. `GET /api/projects/:id/summary` returns it as JSON.
+
 ## API
 
 The JSON REST API lives under `/api`, with interactive OpenAPI docs at **`/api/docs`** (raw spec at `/api/docs/json`). Scripts can read data with an admin-created read-only token (Admin → API tokens):

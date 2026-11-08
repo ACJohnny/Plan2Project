@@ -167,7 +167,9 @@ describe('text outputs (R-56, R-58, R-59)', () => {
     const csv = deviceCsv(floors, types, markers);
     expect(csv.charCodeAt(0)).toBe(0xfeff);
     const lines = csv.slice(1).trim().split('\r\n');
-    expect(lines[0]).toBe('floor,sheet,tag,code,type,category,number,room,mount_height,notes,x,y');
+    expect(lines[0]).toBe(
+      'floor,sheet,tag,code,type,category,number,room,mount_height,notes,x,y,zone,closet,wires,run_ft',
+    );
     expect(lines[1].startsWith('1st Floor,A2.1,SPK1,')).toBe(true);
     expect(lines[2]).toContain('"pair, ""L"""');
   });

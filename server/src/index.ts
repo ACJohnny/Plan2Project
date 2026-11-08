@@ -1,7 +1,7 @@
 import { loadConfig } from './config';
 import { createDb, runMigrations } from './db';
 import { buildApp } from './app';
-import { seedLibrary } from './routes/library';
+import { seedLibrary, seedWires } from './routes/library';
 import { bootstrapAdmin, purgeDeleted, scheduleNightly } from './services/maintenance';
 
 async function main() {
@@ -27,6 +27,7 @@ async function main() {
   }
   log.info('migrations applied');
   if (await seedLibrary(db)) log.info('device library seeded');
+  if (await seedWires(db)) log.info('wire types seeded');
   const admin = await bootstrapAdmin(db, cfg);
   if (admin === 'created') log.info({ email: cfg.ADMIN_EMAIL }, 'first admin created');
   if (admin === 'skipped') log.warn('no users exist and ADMIN_EMAIL / ADMIN_PASSWORD are not set');

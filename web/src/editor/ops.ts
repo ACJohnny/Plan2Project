@@ -9,6 +9,7 @@ import {
 import { api, ApiError } from '../api';
 import { toast } from '../toast';
 import { getState, setState, tagOf, typeOf, type Change, type HistoryEntry } from './store';
+import { zoneForPoint } from './zones';
 
 /* =====================================================================
  * Write queue (R-49, R-50, R-52): optimistic local apply, ordered sends,
@@ -202,6 +203,7 @@ function bodyOf(m: Marker, extra: Partial<PutMarkerBody> = {}): PutMarkerBody {
     room: m.room,
     mountHeight: m.mountHeight,
     notes: m.notes,
+    closetZoneId: m.closetZoneId,
     ...extra,
   };
 }
@@ -262,6 +264,7 @@ function commit(
         room: a.room,
         mountHeight: a.mountHeight,
         notes: a.notes,
+        closetZoneId: a.closetZoneId,
         ...(opts.autoNumber?.has(c.id) ? { autoNumber: true } : { number: a.number }),
       });
     }
@@ -303,7 +306,9 @@ export function newMarker(typeId: string, floorId: string, x: number, y: number,
   const t = typeOf(typeId);
   const now = Date.now();
   const lp = s.lastPlaced;
-  const room = lp && lp.floorId === floorId && now - lp.at < 2 * 60_000 ? lp.room : ''; // R-43
+  // a device placed inside a zone takes the zone's name; otherwise R-43 prefill
+  const zone = zoneForPoint(floorId, x, y);
+  const room = zone ? zone.name : lp && lp.floorId === floorId && now - lp.at < 2 * 60_000 ? lp.room : '';
   const notes = [t?.defaultModel, t?.defaultNotes].filter(Boolean).join('\n'); // R-26
   return {
     id: uuid(),
@@ -316,6 +321,7 @@ export function newMarker(typeId: string, floorId: string, x: number, y: number,
     room,
     mountHeight: '',
     notes,
+    closetZoneId: null,
     createdBy: null,
     updatedBy: null,
     updatedAt: new Date().toISOString(),
@@ -330,7 +336,11 @@ export function placeMarker(typeId: string, x: number, y: number) {
   const changes = [{ id: m.id, before: null, after: m }];
   commit(changes, tagOf(m), { autoNumber: new Set([m.id]) });
   pushHistory({ label: `Place ${tagOf(m)}`, changes, at: Date.now() });
-  setState({ selection: [m.id], lastPlaced: { floorId: m.floorId, room: m.room, at: Date.now() } });
+  setState({
+    selection: [m.id],
+    selectedZone: null,
+    lastPlaced: { floorId: m.floorId, room: m.room, at: Date.now() },
+  });
   return m;
 }
 
@@ -340,8 +350,14 @@ export function commitMove(before: Marker[]) {
   const changes: Change[] = [];
   for (const b of before) {
     const a = s.markers[b.id];
-    if (a && (a.x !== b.x || a.y !== b.y))
-      changes.push({ id: b.id, before: b, after: { ...a, x: toFraction(a.x), y: toFraction(a.y) } });
+    if (a && (a.x !== b.x || a.y !== b.y)) {
+      const after = { ...a, x: toFraction(a.x), y: toFraction(a.y) };
+      // moving into another zone updates a room that was blank or came from the old zone
+      const from = zoneForPoint(b.floorId, b.x, b.y);
+      const to = zoneForPoint(after.floorId, after.x, after.y);
+      if (to && to.id !== from?.id && (!b.room || b.room === from?.name)) after.room = to.name;
+      changes.push({ id: b.id, before: b, after });
+    }
   }
   if (!changes.length) return;
   // restore the "before" locally so commit() records a correct rollback, then apply
@@ -381,7 +397,7 @@ export function nudge(ids: string[], dx: number, dy: number) {
 /** R-40, R-45: field edits on one or more markers. */
 export function editMarkers(
   ids: string[],
-  patch: Partial<Pick<Marker, 'room' | 'mountHeight' | 'notes' | 'number'>>,
+  patch: Partial<Pick<Marker, 'room' | 'mountHeight' | 'notes' | 'number' | 'closetZoneId'>>,
   field: string,
 ) {
   const s = getState();

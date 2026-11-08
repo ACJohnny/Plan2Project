@@ -9,7 +9,7 @@ import { loadConfig } from './config';
 import { createDb, runMigrations } from './db';
 import { deviceTypes, markers, projects, users } from './db/schema';
 import { Storage } from './lib/storage';
-import { seedLibrary } from './routes/library';
+import { seedLibrary, seedWires } from './routes/library';
 import { bootstrapAdmin } from './services/maintenance';
 import { createFloor } from './services/jobs';
 
@@ -43,6 +43,7 @@ async function main() {
   const { db, pool } = createDb(cfg.DATABASE_URL);
   await runMigrations(db, cfg.MIGRATIONS_DIR);
   await seedLibrary(db);
+  await seedWires(db);
   await bootstrapAdmin(db, cfg);
   const storage = new Storage(cfg.DATA_DIR);
   await storage.init();

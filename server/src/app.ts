@@ -30,6 +30,7 @@ import { exportRoutes } from './routes/exports';
 import { tokenRoutes } from './routes/tokens';
 import { eventRoutes } from './routes/events';
 import { fileRoutes } from './routes/files';
+import { zoneRoutes } from './routes/zones';
 
 export interface Ctx {
   cfg: Config;
@@ -182,6 +183,7 @@ export async function buildApp(cfg: Config, db: DB, opts: { logger?: boolean } =
   await app.register(tokenRoutes);
   await app.register(eventRoutes);
   await app.register(fileRoutes);
+  await app.register(zoneRoutes);
 
   // Static SPA (R-1): long-cache hashed assets, index.html never cached.
   if (fs.existsSync(path.join(cfg.STATIC_DIR, 'index.html'))) {

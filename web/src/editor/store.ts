@@ -8,6 +8,8 @@ import type {
   Project,
   Upload,
   View,
+  WireType,
+  Zone,
 } from '@sixpoint/shared';
 
 export type SaveStatus = 'saved' | 'saving' | 'offline' | 'failed';
@@ -31,6 +33,11 @@ export interface EditorState {
   categories: Category[];
   types: DeviceType[];
   markers: Record<string, Marker>;
+  zones: Record<string, Zone>;
+  wireTypes: WireType[];
+  /** extra plan tools beyond select/box/place */
+  tool: 'zone' | 'riser' | 'calibrate' | null;
+  selectedZone: string | null;
   floorId: string | null;
   selection: string[];
   armed: string | null;
@@ -57,6 +64,10 @@ export const initialState = (): EditorState => ({
   categories: [],
   types: [],
   markers: {},
+  zones: {},
+  wireTypes: [],
+  tool: null,
+  selectedZone: null,
   floorId: null,
   selection: [],
   armed: null,

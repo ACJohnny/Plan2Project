@@ -5,7 +5,7 @@ import pg from 'pg';
 import { loadConfig } from '../src/config';
 import { createDb, runMigrations } from '../src/db';
 import { buildApp } from '../src/app';
-import { seedLibrary } from '../src/routes/library';
+import { seedLibrary, seedWires } from '../src/routes/library';
 import { bootstrapAdmin } from '../src/services/maintenance';
 
 export const ORIGIN = 'http://localhost:8080';
@@ -35,6 +35,7 @@ export async function setupApp() {
   const { db, pool } = createDb(url);
   await runMigrations(db, cfg.MIGRATIONS_DIR);
   await seedLibrary(db);
+  await seedWires(db);
   await bootstrapAdmin(db, cfg);
   const app = await buildApp(cfg, db, { logger: false });
   await app.ready();

@@ -107,12 +107,24 @@ export const CSV_COLUMNS = [
   'notes',
   'x',
   'y',
+  'zone',
+  'closet',
+  'wires',
+  'run_ft',
 ] as const;
+
+export interface CsvExtras {
+  zone: string;
+  closet: string;
+  wires: string;
+  runFt: number | null;
+}
 
 export function deviceCsv(
   floors: ExportFloor[],
   types: Map<string, ExportType>,
   markers: ExportMarker[],
+  extras?: Map<string, CsvExtras>,
 ): string {
   const rows: string[] = [CSV_COLUMNS.join(',')];
   for (const f of floors) {
@@ -121,6 +133,7 @@ export function deviceCsv(
       types,
     )) {
       const t = types.get(m.typeId);
+      const e = extras?.get(m.id);
       rows.push(
         [
           f.name,
@@ -135,13 +148,17 @@ export function deviceCsv(
           m.notes,
           m.x.toFixed(5),
           m.y.toFixed(5),
+          e?.zone ?? '',
+          e?.closet ?? '',
+          e?.wires ?? '',
+          e?.runFt == null ? '' : Math.round(e.runFt),
         ]
           .map(csvCell)
           .join(','),
       );
     }
   }
-  return '﻿' + rows.join('\r\n') + '\r\n';
+  return '\uFEFF' + rows.join('\r\n') + '\r\n';
 }
 
 /** Pull "A2.1 1st Floor Plan" style sheet titles from pdftotext output (R-19). */

@@ -47,6 +47,7 @@ function snapshot(m: MarkerRow | undefined | null) {
     room: m.room,
     mountHeight: m.mountHeight,
     notes: m.notes,
+    closetZoneId: m.closetZoneId,
   };
 }
 
@@ -107,6 +108,7 @@ export async function upsertMarker(
     room: body.room ?? '',
     mountHeight: body.mountHeight ?? '',
     notes: body.notes ?? '',
+    closetZoneId: body.closetZoneId === undefined ? (existing?.closetZoneId ?? null) : body.closetZoneId,
     updatedBy: userId,
     updatedAt: new Date(),
     deletedAt: null,
@@ -155,6 +157,7 @@ export async function patchMarker(
     room: p.room ?? existing.room,
     mountHeight: p.mountHeight ?? existing.mountHeight,
     notes: p.notes ?? existing.notes,
+    closetZoneId: p.closetZoneId === undefined ? existing.closetZoneId : p.closetZoneId,
   });
 }
 

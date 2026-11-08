@@ -4,6 +4,7 @@ import { api, ApiError, download, CLIENT_ID } from '../api';
 import { Confirm, Modal, timeAgo } from '../components/ui';
 import { toast } from '../toast';
 import { applyRenumber } from './ops';
+import { FloorCablingSettings } from './ZoneDialogs';
 import { colorOf, getState, setState, typeOf, useEditor } from './store';
 
 void CLIENT_ID;
@@ -100,6 +101,7 @@ export function FloorDialog({ floor, onClose }: { floor: Floor; onClose: () => v
             placeholder="e.g. A2.1"
           />
         </label>
+        <FloorCablingSettings floor={floor} onPickOnPlan={onClose} />
         <div className="span-2 replace-box">
           <div>
             <strong>Replace sheet</strong>

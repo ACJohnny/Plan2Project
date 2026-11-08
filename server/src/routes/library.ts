@@ -10,11 +10,15 @@ import {
   Library,
   ReorderBody,
   SEED_LIBRARY,
+  SEED_TYPE_WIRES,
+  SEED_WIRE_TYPES,
   UpdateCategoryBody,
   UpdateTypeBody,
+  WireType,
+  WireTypeBody,
 } from '@sixpoint/shared';
 import type { DB } from '../db';
-import { deviceCategories, deviceTypes } from '../db/schema';
+import { deviceCategories, deviceTypes, deviceTypeWires, wireTypes } from '../db/schema';
 import { HttpError, requireRole, requireUser } from '../lib/auth';
 
 const P = z.object({ id: Id });
@@ -32,6 +36,29 @@ export async function seedLibrary(db: DB) {
         .insert(deviceTypes)
         .values(c.types.map((t, ti) => ({ categoryId: cat.id, code: t.code, name: t.name, sortOrder: ti })));
     }
+  });
+  return true;
+}
+
+/** Seed wire types and default wiring once (also for installs created before wiring existed). */
+export async function seedWires(db: DB) {
+  const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(wireTypes);
+  if (n > 0) return false;
+  await db.transaction(async (tx) => {
+    const rows = await tx
+      .insert(wireTypes)
+      .values(SEED_WIRE_TYPES.map((name, i) => ({ name, sortOrder: i })))
+      .returning();
+    const byName = new Map(rows.map((r) => [r.name, r.id]));
+    const types = await tx.select().from(deviceTypes);
+    const links = types.flatMap((t) =>
+      (SEED_TYPE_WIRES[t.code] ?? []).map(([w, count]) => ({
+        typeId: t.id,
+        wireTypeId: byName.get(w)!,
+        count,
+      })),
+    );
+    if (links.length) await tx.insert(deviceTypeWires).values(links).onConflictDoNothing();
   });
   return true;
 }
@@ -54,7 +81,26 @@ export async function loadLibrary(db: DB): Promise<Library> {
     (a, b) =>
       (catOrder.get(a.categoryId) ?? 0) - (catOrder.get(b.categoryId) ?? 0) || a.sortOrder - b.sortOrder,
   );
+  const wt = await db.select().from(wireTypes).orderBy(asc(wireTypes.sortOrder), asc(wireTypes.name));
+  const links = await db.select().from(deviceTypeWires);
+  const wireOrder = new Map(wt.map((w, i) => [w.id, i]));
+  const wiresOf = new Map<string, { wireTypeId: string; count: number }[]>();
+  for (const l of links.sort(
+    (a, b) => (wireOrder.get(a.wireTypeId) ?? 0) - (wireOrder.get(b.wireTypeId) ?? 0),
+  )) {
+    const list = wiresOf.get(l.typeId) ?? [];
+    list.push({ wireTypeId: l.wireTypeId, count: l.count });
+    wiresOf.set(l.typeId, list);
+  }
+  const wireUse = new Map<string, number>();
+  for (const l of links) wireUse.set(l.wireTypeId, (wireUse.get(l.wireTypeId) ?? 0) + 1);
   return {
+    wireTypes: wt.map((w) => ({
+      id: w.id,
+      name: w.name,
+      sortOrder: w.sortOrder,
+      inUse: wireUse.get(w.id) ?? 0,
+    })),
     categories: cats.map((c) => ({ id: c.id, name: c.name, color: c.colorHex, sortOrder: c.sortOrder })),
     types: types.map((t) => ({
       id: t.id,
@@ -66,6 +112,7 @@ export async function loadLibrary(db: DB): Promise<Library> {
       sortOrder: t.sortOrder,
       retiredAt: t.retiredAt?.toISOString() ?? null,
       inUse: used.get(t.id) ?? 0,
+      wires: wiresOf.get(t.id) ?? [],
     })),
   };
 }
@@ -182,16 +229,27 @@ export const libraryRoutes: FastifyPluginAsyncZod = async (app) => {
       preHandler: admin,
     },
     async (req) => {
-      const { retired, ...rest } = req.body;
+      const { retired, wires, ...rest } = req.body;
       if (rest.code && (await codeTaken(rest.code, req.params.id)))
         throw new HttpError(409, `Code ${rest.code} is already used`);
       const patch: Partial<typeof deviceTypes.$inferInsert> = { ...rest };
       if (retired !== undefined) patch.retiredAt = retired ? new Date() : null;
-      const [t] = await db
-        .update(deviceTypes)
-        .set(patch)
-        .where(eq(deviceTypes.id, req.params.id))
-        .returning();
+      if (wires) {
+        await db.transaction(async (tx) => {
+          await tx.delete(deviceTypeWires).where(eq(deviceTypeWires.typeId, req.params.id));
+          const merged = new Map<string, number>();
+          for (const w of wires) merged.set(w.wireTypeId, (merged.get(w.wireTypeId) ?? 0) + w.count);
+          if (merged.size)
+            await tx
+              .insert(deviceTypeWires)
+              .values(
+                [...merged].map(([wireTypeId, count]) => ({ typeId: req.params.id, wireTypeId, count })),
+              );
+        });
+      }
+      const [t] = Object.keys(patch).length
+        ? await db.update(deviceTypes).set(patch).where(eq(deviceTypes.id, req.params.id)).returning()
+        : await db.select().from(deviceTypes).where(eq(deviceTypes.id, req.params.id));
       if (!t) throw new HttpError(404, 'Device type not found');
       changed(req);
       return (await loadLibrary(db)).types.find((x) => x.id === t.id)!;
@@ -230,6 +288,62 @@ export const libraryRoutes: FastifyPluginAsyncZod = async (app) => {
           if (req.body.categoryId) patch.categoryId = req.body.categoryId;
           await tx.update(deviceTypes).set(patch).where(eq(deviceTypes.id, id));
         }
+      });
+      changed(req);
+      return { ok: true };
+    },
+  );
+
+  /* ---------- wire types ---------- */
+
+  app.post(
+    '/api/device-library/wire-types',
+    { schema: { tags: ['library'], body: WireTypeBody, response: { 200: WireType } }, preHandler: admin },
+    async (req) => {
+      const [{ n }] = await db
+        .select({ n: sql<number>`coalesce(max(sort_order), -1)::int + 1` })
+        .from(wireTypes);
+      const [w] = await db.insert(wireTypes).values({ name: req.body.name, sortOrder: n }).returning();
+      changed(req);
+      return { id: w.id, name: w.name, sortOrder: w.sortOrder, inUse: 0 };
+    },
+  );
+
+  app.patch(
+    '/api/device-library/wire-types/:id',
+    {
+      schema: { tags: ['library'], params: P, body: WireTypeBody, response: { 200: WireType } },
+      preHandler: admin,
+    },
+    async (req) => {
+      const [w] = await db
+        .update(wireTypes)
+        .set({ name: req.body.name })
+        .where(eq(wireTypes.id, req.params.id))
+        .returning();
+      if (!w) throw new HttpError(404, 'Wire type not found');
+      changed(req);
+      return (await loadLibrary(db)).wireTypes.find((x) => x.id === w.id)!;
+    },
+  );
+
+  app.delete(
+    '/api/device-library/wire-types/:id',
+    { schema: { tags: ['library'], params: P }, preHandler: admin },
+    async (req) => {
+      await db.delete(wireTypes).where(eq(wireTypes.id, req.params.id));
+      changed(req);
+      return { ok: true };
+    },
+  );
+
+  app.post(
+    '/api/device-library/wire-types/reorder',
+    { schema: { tags: ['library'], body: ReorderBody }, preHandler: admin },
+    async (req) => {
+      await db.transaction(async (tx) => {
+        for (const [i, id] of req.body.ids.entries())
+          await tx.update(wireTypes).set({ sortOrder: i }).where(eq(wireTypes.id, id));
       });
       changed(req);
       return { ok: true };

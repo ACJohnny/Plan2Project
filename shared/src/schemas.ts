@@ -62,6 +62,8 @@ export const Project = z.object({
   floorCount: z.number(),
   deviceCount: z.number(),
   thumbUrl: z.string().nullable(),
+  /** extra wire added to every cable run, feet */
+  extraWireFt: z.number(),
 });
 export type Project = z.infer<typeof Project>;
 
@@ -74,6 +76,7 @@ export const ProjectFields = z.object({
 });
 export const CreateProjectBody = ProjectFields;
 export const UpdateProjectBody = ProjectFields.partial().extend({
+  extraWireFt: z.number().min(0).max(1000).optional(),
   archived: z.boolean().optional(),
   restore: z.boolean().optional(),
 });
@@ -94,12 +97,26 @@ export const Floor = z.object({
   widthPx: z.number(),
   heightPx: z.number(),
   previewWidthPx: z.number(),
+  /** DPI the sheet was rendered at (PDF pages), used to derive feet/px from a drawing scale */
+  renderDpi: z.number().nullable(),
+  /** real feet per sheet pixel; null until a scale is set or calibrated */
+  ftPerPx: z.number().nullable(),
+  scaleLabel: z.string(),
+  floorHeightFt: z.number(),
+  riserX: z.number().nullable(),
+  riserY: z.number().nullable(),
   updatedAt: ts,
 });
 export type Floor = z.infer<typeof Floor>;
 export const UpdateFloorBody = z.object({
   name: z.string().trim().min(1).max(120).optional(),
   sheetNumber: z.string().max(40).optional(),
+  ftPerPx: z.number().positive().max(100).nullable().optional(),
+  scaleLabel: z.string().max(60).optional(),
+  renderDpi: z.number().int().min(36).max(1200).nullable().optional(),
+  floorHeightFt: z.number().min(0).max(100).optional(),
+  riserX: z.number().min(0).max(1).nullable().optional(),
+  riserY: z.number().min(0).max(1).nullable().optional(),
 });
 export const ReorderFloorsBody = z.object({ floorIds: z.array(Id).min(1) });
 
@@ -151,9 +168,16 @@ export const DeviceType = z.object({
   sortOrder: z.number(),
   retiredAt: ts.nullable(),
   inUse: z.number(),
+  wires: z.array(z.object({ wireTypeId: Id, count: z.number().int().min(1).max(20) })),
 });
 export type DeviceType = z.infer<typeof DeviceType>;
-export const Library = z.object({ categories: z.array(Category), types: z.array(DeviceType) });
+export const WireType = z.object({ id: Id, name: z.string(), sortOrder: z.number(), inUse: z.number() });
+export type WireType = z.infer<typeof WireType>;
+export const Library = z.object({
+  categories: z.array(Category),
+  types: z.array(DeviceType),
+  wireTypes: z.array(WireType),
+});
 export type Library = z.infer<typeof Library>;
 
 export const CreateCategoryBody = z.object({ name: z.string().trim().min(1).max(60), color: HexColor });
@@ -170,7 +194,12 @@ export const CreateTypeBody = z.object({
 export const UpdateTypeBody = CreateTypeBody.partial().extend({
   sortOrder: z.number().int().optional(),
   retired: z.boolean().optional(),
+  wires: z
+    .array(z.object({ wireTypeId: Id, count: z.number().int().min(1).max(20) }))
+    .max(20)
+    .optional(),
 });
+export const WireTypeBody = z.object({ name: z.string().trim().min(1).max(60) });
 export const ReorderBody = z.object({ ids: z.array(Id).min(1) });
 
 const frac = z.number().min(0).max(1);
@@ -185,11 +214,37 @@ export const Marker = z.object({
   room: z.string(),
   mountHeight: z.string(),
   notes: z.string(),
+  /** equipment closet override; null = the project's first closet */
+  closetZoneId: Id.nullable(),
   createdBy: Id.nullable(),
   updatedBy: Id.nullable(),
   updatedAt: ts,
 });
 export type Marker = z.infer<typeof Marker>;
+
+export const ZoneKind = z.enum(['room', 'closet']);
+export const AudioFormatSchema = z.enum(['stereo', '5.0', '5.1', '7.1']);
+const Point = z.tuple([z.number().min(0).max(1), z.number().min(0).max(1)]);
+export const Zone = z.object({
+  id: Id,
+  projectId: Id,
+  floorId: Id,
+  name: z.string(),
+  kind: ZoneKind,
+  points: z.array(Point),
+  audioFormat: AudioFormatSchema.nullable(),
+  updatedAt: ts,
+});
+export type Zone = z.infer<typeof Zone>;
+/** PUT /api/zones/:id — upsert by client UUID */
+export const PutZoneBody = z.object({
+  projectId: Id,
+  floorId: Id,
+  name: z.string().trim().min(1).max(120),
+  kind: ZoneKind,
+  points: z.array(Point).min(3).max(200),
+  audioFormat: AudioFormatSchema.nullable().default(null),
+});
 
 export const MarkerFields = z.object({
   floorId: Id,
@@ -199,6 +254,7 @@ export const MarkerFields = z.object({
   room: z.string().max(200).default(''),
   mountHeight: z.string().max(80).default(''),
   notes: z.string().max(5000).default(''),
+  closetZoneId: Id.nullable().optional(),
 });
 
 /** PUT /api/markers/:id — upsert by client UUID. Omit `number` (or set autoNumber) to have the server assign it. */
@@ -285,6 +341,8 @@ export type ProjectEvent =
   | { type: 'project.update'; origin: string | null; project: Project }
   | { type: 'upload.progress'; origin: string | null; upload: Upload }
   | { type: 'library.update'; origin: string | null }
+  | { type: 'zone.upsert'; origin: string | null; zones: Zone[] }
+  | { type: 'zone.delete'; origin: string | null; ids: string[] }
   | { type: 'presence'; origin: null; users: PresenceUser[] };
 
 export const ErrorBody = z.object({ error: z.string(), details: z.any().optional() });
