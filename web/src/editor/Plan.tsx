@@ -48,7 +48,7 @@ type Gesture =
     }
   | { kind: 'zoneRect'; id: number; sx: number; sy: number; x: number; y: number }
   | { kind: 'vertex'; id: number; zone: Zone; index: number }
-  | { kind: 'coverage'; id: number; before: Marker; handle: CoverageHandle }
+  | { kind: 'coverage'; id: number; before: Marker; handle: CoverageHandle; grab: { x: number; y: number } }
   | { kind: 'pan'; id: number; lx: number; ly: number }
   | {
       kind: 'drag';
@@ -317,6 +317,7 @@ export function Plan() {
         id: e.pointerId,
         before: st.markers[st.selection[0]],
         handle: cEl.dataset.cov as CoverageHandle,
+        grab: screenToFraction(viewRef.current!, sheet!, p.x, p.y),
       };
       return;
     }
@@ -422,7 +423,13 @@ export function Plan() {
       for (const [id, st] of cur.start) pos.set(id, { x: clamp(st.x + dx, 0, 1), y: clamp(st.y + dy, 0, 1) });
       setPositionsLocal(pos);
     } else if (cur.kind === 'coverage') {
-      dragCoverage(cur.before, cur.handle, screenToFraction(viewRef.current!, sheet, p.x, p.y), floor!);
+      dragCoverage(
+        cur.before,
+        cur.handle,
+        screenToFraction(viewRef.current!, sheet, p.x, p.y),
+        floor!,
+        cur.grab,
+      );
     } else if (cur.kind === 'vertex') {
       const f = screenToFraction(viewRef.current!, sheet, p.x, p.y);
       const pts = cur.zone.points.map((q, i) =>

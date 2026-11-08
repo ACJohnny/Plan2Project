@@ -1956,13 +1956,18 @@ input[type='radio'] {
   height: 24px;
   cursor: grab;
 }
-/* an L-shaped bracket, like a corner handle, turned to face along the radius */
+/* an L-shaped bracket whose corner sits on the arc end; --rot lays its arms along the radius and the arc */
 .cov-handle.edge::before {
   content: '';
   position: absolute;
-  inset: 5px;
+  box-sizing: border-box;
+  left: calc(50% - 11.5px);
+  top: calc(50% - 1.5px);
+  width: 13px;
+  height: 13px;
   border-top: 3px solid #1b1720;
   border-right: 3px solid #1b1720;
+  transform-origin: calc(100% - 1.5px) 1.5px;
   rotate: var(--rot);
 }
 .cov-handle.dir {

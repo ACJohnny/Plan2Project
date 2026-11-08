@@ -117,14 +117,15 @@ export function CoverageHandles({ floor }: { floor: Floor }) {
   const r = c.rangeFt / floor.ftPerPx;
   const cx = m.x * floor.widthPx;
   const cy = m.y * floor.heightPx;
-  const at = (deg: number, extraScreenPx = 0) => {
+  /** `rot` turns the bracket (corner up-right, arms left and down) so its arms run along the edges. */
+  const at = (deg: number, extraScreenPx = 0, rot = 0) => {
     const [ux, uy] = bearing(deg);
     return {
       '--x': cx + ux * r,
       '--y': cy + uy * r,
       '--ox': ux * extraScreenPx,
       '--oy': uy * extraScreenPx,
-      '--rot': `${deg}deg`,
+      '--rot': `${rot}deg`,
     } as React.CSSProperties;
   };
   const full = c.angleDeg >= 359.9;
@@ -135,7 +136,7 @@ export function CoverageHandles({ floor }: { floor: Floor }) {
           className="cov-handle edge"
           data-cov="a"
           title="Drag to change the range"
-          style={at(c.dirDeg + 180)}
+          style={at(c.dirDeg + 180, 0, c.dirDeg + 180 - 45)}
         />
       ) : (
         <>
@@ -143,17 +144,22 @@ export function CoverageHandles({ floor }: { floor: Floor }) {
             className="cov-handle edge"
             data-cov="a"
             title="Drag to change the angle and range"
-            style={at(c.dirDeg - c.angleDeg / 2)}
+            style={at(c.dirDeg - c.angleDeg / 2, 0, c.dirDeg - c.angleDeg / 2 - 90)}
           />
           <div
             className="cov-handle edge"
             data-cov="b"
             title="Drag to change the angle and range"
-            style={at(c.dirDeg + c.angleDeg / 2)}
+            style={at(c.dirDeg + c.angleDeg / 2, 0, c.dirDeg + c.angleDeg / 2)}
           />
         </>
       )}
-      <div className="cov-handle dir" data-cov="dir" title="Drag to rotate" style={at(c.dirDeg, 30)}>
+      <div
+        className="cov-handle dir"
+        data-cov="dir"
+        title="Drag around to turn it, in or out to change the range"
+        style={at(c.dirDeg, 30)}
+      >
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
           <path d="M12 2l3 3h-2v6h6V9l3 3-3 3v-2h-6v6h2l-3 3-3-3h2v-6H5v2l-3-3 3-3v2h6V5H9z" />
         </svg>
@@ -162,12 +168,16 @@ export function CoverageHandles({ floor }: { floor: Floor }) {
   );
 }
 
-/** Apply a coverage handle drag: `f` is the pointer in sheet fractions. Updates the store live. */
+/**
+ * Apply a coverage handle drag: `f` is the pointer in sheet fractions, `grab` where the drag started.
+ * Updates the store live.
+ */
 export function dragCoverage(
   before: Marker,
   handle: CoverageHandle,
   f: { x: number; y: number },
   floor: Floor,
+  grab?: { x: number; y: number },
 ) {
   const c = coverageOf(before);
   if (!c || !floor.ftPerPx) return;
@@ -177,6 +187,12 @@ export function dragCoverage(
   const next = { ...(before.coverage ?? {}) };
   if (handle === 'dir') {
     next.dirDeg = Math.round(deg);
+    // moving toward / away from the device changes the range by the same distance
+    if (grab) {
+      const g0 = Math.hypot((grab.x - before.x) * floor.widthPx, (grab.y - before.y) * floor.heightPx);
+      const ft = c.rangeFt + (Math.hypot(dx, dy) - g0) * floor.ftPerPx;
+      next.rangeFt = Math.max(1, Math.round(ft * 2) / 2);
+    }
   } else {
     const rangeFt = Math.max(1, Math.round(Math.hypot(dx, dy) * floor.ftPerPx * 2) / 2);
     next.rangeFt = rangeFt;

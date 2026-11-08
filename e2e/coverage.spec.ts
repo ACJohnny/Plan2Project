@@ -63,9 +63,13 @@ test('wire paths toggle, and a camera coverage area edited with drag handles', a
   await expect(page.locator('.cov-handle.edge')).toHaveCount(2);
   await page.screenshot({ path: test.info().outputPath('coverage.png') });
 
-  // rotate: drag the direction handle to the right of the camera → facing 90°
-  await drag(page, await center(page, '.cov-handle.dir'), await sheetPoint(page, 0.85, 0.5));
+  // rotate: drag the direction handle to the right of the camera → facing 90°; pulling it in to
+  // 27 ft from the camera (it starts just beyond the 40 ft arc) shortens the range by ~13 ft
+  await drag(page, await center(page, '.cov-handle.dir'), await sheetPoint(page, 0.75, 0.5));
   await expect(page.getByText('Saved')).toBeVisible();
+  const rotated = Number(await page.getByLabel('Range (ft)').inputValue());
+  expect(rotated).toBeGreaterThan(18);
+  expect(rotated).toBeLessThan(27);
   // widen + shorten: drag the clockwise edge to straight below, 18 ft away → 180°, 18 ft
   await drag(
     page,
@@ -88,9 +92,11 @@ test('wire paths toggle, and a camera coverage area edited with drag handles', a
   expect(c.rangeFt).toBeGreaterThan(16);
   expect(c.rangeFt).toBeLessThan(20);
 
-  // undo restores the previous shape
+  // undo restores the previous shapes, one drag at a time
   await page.keyboard.press('Control+z');
-  await expect.poll(async () => (await get()).coverage.rangeFt).toBeUndefined();
+  await expect.poll(async () => (await get()).coverage.rangeFt).toBe(rotated);
+  await page.keyboard.press('Control+z');
+  await expect.poll(async () => (await get()).coverage?.rangeFt).toBeUndefined();
 
   // each device can turn its coverage off
   await page.getByRole('checkbox', { name: 'Coverage area' }).uncheck();
