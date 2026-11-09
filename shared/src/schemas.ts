@@ -206,7 +206,13 @@ export const ZoneName = z.object({ id: Id, name: z.string(), sortOrder: z.number
 export type ZoneName = z.infer<typeof ZoneName>;
 /** How strongly zone corners snap: the pull distance in screen pixels; 0 turns that snap off. */
 const SnapPx = z.number().int().min(0).max(60);
-export const SnapSettings = z.object({ cornerPx: SnapPx, edgePx: SnapPx, linePx: SnapPx });
+export const SnapSettings = z.object({
+  cornerPx: SnapPx,
+  edgePx: SnapPx,
+  /** degrees from horizontal or vertical within which an edge straightens */
+  axisDeg: z.number().min(0).max(15),
+  linePx: SnapPx,
+});
 export type SnapSettings = z.infer<typeof SnapSettings>;
 const SheetLineRow = z.tuple([z.number(), z.number(), z.number()]);
 export const SheetLinesDto = z.object({ h: z.array(SheetLineRow), v: z.array(SheetLineRow) });

@@ -142,7 +142,13 @@ export function Plan() {
   useEffect(() => setGuides([]), [zoneEdit, tool]);
 
   /** A pointer position in sheet fractions after snapping; holding Alt skips it. */
-  const snapped = (sx: number, sy: number, alt: boolean, excludeZone: string | null) => {
+  const snapped = (
+    sx: number,
+    sy: number,
+    alt: boolean,
+    excludeZone: string | null,
+    neighbors: [number, number][] = [],
+  ) => {
     const v = viewRef.current!;
     const f = screenToFraction(v, sheet!, sx, sy);
     if (alt) {
@@ -153,14 +159,25 @@ export function Plan() {
     const h = floor!.heightPx;
     const r = snapPoint(
       [f.x * w, f.y * h],
-      { ...zoneSnapTargets(Object.values(getState().zones), floor!.id, excludeZone, w, h), lines: linePx },
-      { corner: snap.cornerPx / v.scale, edge: snap.edgePx / v.scale, line: snap.linePx / v.scale },
+      {
+        ...zoneSnapTargets(Object.values(getState().zones), floor!.id, excludeZone, w, h),
+        lines: linePx,
+        neighbors: neighbors.map(([x, y]) => [x * w, y * h]),
+      },
+      {
+        corner: snap.cornerPx / v.scale,
+        edge: snap.edgePx / v.scale,
+        axisDeg: snap.axisDeg,
+        line: snap.linePx / v.scale,
+      },
     );
     setGuides(r.guides);
     return { x: r.x / w, y: r.y / h };
   };
-  const snappedScreen = (sx: number, sy: number, alt: boolean) => {
-    const f = snapped(sx, sy, alt, null);
+  /** A new outline's next corner lines up with the last one, and with the first, to close it square. */
+  const draftNeighbors = () => (draft.length > 1 ? [draft[draft.length - 1], draft[0]] : draft);
+  const snappedScreen = (sx: number, sy: number, alt: boolean, neighbors: [number, number][] = []) => {
+    const f = snapped(sx, sy, alt, null, neighbors);
     return fractionToScreen(viewRef.current!, sheet!, f.x, f.y);
   };
   const lastTap = useRef<{ t: number; x: number; y: number } | null>(null);
@@ -455,7 +472,7 @@ export function Plan() {
       if (tool === 'zone' && canEdit && sheet) {
         // show where the next corner would land, even before the first one
         const h = local(e);
-        const s = snappedScreen(h.x, h.y, e.altKey);
+        const s = snappedScreen(h.x, h.y, e.altKey, draftNeighbors());
         if (draft.length) setHover(s);
       } else if (tool === 'calibrate' && calibA) setHover(local(e));
       return;
@@ -552,7 +569,11 @@ export function Plan() {
         cur.grab,
       );
     } else if (cur.kind === 'vertex') {
-      const f = snapped(p.x, p.y, e.altKey, cur.zone.id);
+      const all = cur.zone.points;
+      const f = snapped(p.x, p.y, e.altKey, cur.zone.id, [
+        all[(cur.index - 1 + all.length) % all.length],
+        all[(cur.index + 1) % all.length],
+      ]);
       const pts = cur.zone.points.map((q, i) =>
         i === cur.index ? ([clamp(f.x, 0, 1), clamp(f.y, 0, 1)] as [number, number]) : q,
       );
@@ -617,7 +638,7 @@ export function Plan() {
             Math.hypot((q[0] - f.x) * sheet.width * v.scale, (q[1] - f.y) * sheet.height * v.scale) < 12;
           if (draft.length >= 3 && (near(draft[0]) || near(draft[draft.length - 1]))) finishDraft(draft);
           else {
-            const c = snapped(g.sx, g.sy, e.altKey, null);
+            const c = snapped(g.sx, g.sy, e.altKey, null, draftNeighbors());
             setDraft([...draft, [clamp(c.x, 0, 1), clamp(c.y, 0, 1)]]);
           }
         } else if (s.tool === 'riser') {

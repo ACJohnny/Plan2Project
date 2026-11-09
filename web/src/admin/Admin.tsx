@@ -1002,12 +1002,33 @@ function WireTypesAdmin({ lib, onChange }: { lib: Library; onChange: () => void 
 
 /* ---------- zone names (autocomplete when naming zones and rooms) ---------- */
 
-const SNAP_FIELDS: { key: keyof SnapSettings; label: string; note: string }[] = [
-  { key: 'cornerPx', label: "Another zone's corner", note: 'Usually the strongest.' },
-  { key: 'edgePx', label: "Another zone's edge", note: 'Closes the gap between neighbouring rooms.' },
+const SNAP_FIELDS: { key: keyof SnapSettings; label: string; unit: string; max: number; note: string }[] = [
+  {
+    key: 'axisDeg',
+    label: 'Straight edges',
+    unit: 'degrees',
+    max: 15,
+    note: 'An edge this close to horizontal or vertical comes out exactly straight, whatever else is nearby.',
+  },
+  {
+    key: 'cornerPx',
+    label: "Another zone's corner",
+    unit: 'px',
+    max: 60,
+    note: 'Usually the strongest of the rest.',
+  },
+  {
+    key: 'edgePx',
+    label: "Another zone's edge",
+    unit: 'px',
+    max: 60,
+    note: 'Closes the gap between neighbouring rooms.',
+  },
   {
     key: 'linePx',
     label: 'Lines on the drawing',
+    unit: 'px',
+    max: 60,
     note: 'Keep this light so it is easy to drag past. Each project can turn this one off.',
   },
 ];
@@ -1038,19 +1059,22 @@ function SnapAdmin() {
     <section className="card">
       <h2>Snapping</h2>
       <p className="muted small">
-        How strongly a zone corner is pulled while it's dragged or drawn: the distance, in pixels on screen,
-        at which it snaps. Higher is stronger; 0 turns that snap off. When several are in reach, a corner
-        beats an edge, and an edge beats a line. Hold Alt while dragging to turn snapping off for a moment.
+        How strongly a zone corner is pulled while it's dragged or drawn. Higher is stronger; 0 turns that
+        snap off. Pixels are measured on screen. They apply in the order below: an edge that can straighten
+        always does, and the others only move the corner in the direction that leaves free. Hold Alt while
+        dragging to turn snapping off for a moment.
       </p>
       <form className="snap-form" onSubmit={save}>
-        {SNAP_FIELDS.map(({ key, label, note }) => (
+        {SNAP_FIELDS.map(({ key, label, unit, max, note }) => (
           <label className="field" key={key}>
-            <span>{label} (px)</span>
+            <span>
+              {label} ({unit})
+            </span>
             <input
               type="number"
               min={0}
-              max={60}
-              step={1}
+              max={max}
+              step={unit === 'px' ? 1 : 0.5}
               required
               value={f[key]}
               onChange={(e) => setF({ ...f, [key]: Number(e.target.value) })}

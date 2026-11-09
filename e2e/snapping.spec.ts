@@ -136,6 +136,69 @@ test('a corner snaps to lines on the drawing, per project', async ({ page }) => 
   expect(Math.abs((await pts('Z'))[0][0] - nearest(dropX))).toBeGreaterThan(0.0001);
 });
 
+test('pulling a box corner: nearly straight edges come out exactly straight', async ({ page }) => {
+  // no other zones and no drawing lines: nothing else to snap to
+  const { api, proj, pts } = await setup('Straight', { Z: rect(0.3, 0.3, 0.6, 0.6) });
+  await api.patch(`/api/projects/${proj.id}`, { data: { snapToLines: false } });
+  await open(page, proj.id);
+  const inside = await sheetPoint(page, 0.45, 0.45);
+  await page.mouse.click(inside.x, inside.y);
+  await expect(page.locator('.vertex')).toHaveCount(4);
+  const px = 1 / ((await sheetPoint(page, 1, 0)).x - (await sheetPoint(page, 0, 0)).x);
+
+  // bottom-right corner, pulled right and 5 px off level with its neighbor: the bottom edge stays level
+  const out = await sheetPoint(page, 0.7, 0.6);
+  await page.mouse.move((await sheetPoint(page, 0.6, 0.6)).x, (await sheetPoint(page, 0.6, 0.6)).y);
+  await page.mouse.down();
+  await page.mouse.move(out.x, out.y + 5, { steps: 6 });
+  await expect(page.locator('.snap-guide.axis')).toHaveCount(1);
+  await page.screenshot({ path: test.info().outputPath('straight.png') });
+  await page.mouse.up();
+  await expect(page.locator('.snap-guide')).toHaveCount(0);
+  await expect.poll(async () => (await pts('Z'))[2][1]).toBe(0.6);
+  expect(Math.abs((await pts('Z'))[2][0] - 0.7)).toBeLessThan(px * 1.5);
+
+  // back to 5 px off both neighbors: a square corner again
+  const home = await sheetPoint(page, 0.6, 0.6);
+  await drag(page, await sheetPoint(page, 0.7, 0.6), { x: home.x + 5, y: home.y - 5 });
+  await expect.poll(async () => (await pts('Z'))[2]).toEqual([0.6, 0.6]);
+
+  // pulled well off, it goes where it's put
+  await drag(page, home, { x: home.x + 40, y: home.y + 30 });
+  await expect.poll(async () => Math.abs((await pts('Z'))[2][0] - (0.6 + 40 * px))).toBeLessThan(px * 1.5);
+  expect((await pts('Z'))[2][1]).not.toBe(0.6);
+
+  // Alt skips it
+  const [x2, y2] = (await pts('Z'))[2];
+  await page.keyboard.down('Alt');
+  await drag(page, await sheetPoint(page, x2, y2), { x: home.x + 5, y: home.y + 5 });
+  await page.keyboard.up('Alt');
+  await expect.poll(async () => Math.abs((await pts('Z'))[2][0] - (0.6 + 5 * px))).toBeLessThan(px * 1.5);
+  await page.keyboard.press('Escape');
+
+  // drawing a new outline: the second corner lines up with the first
+  await page.getByRole('button', { name: 'Draw zone' }).click();
+  const a = await sheetPoint(page, 0.75, 0.2);
+  const b = await sheetPoint(page, 0.85, 0.2);
+  await page.mouse.click(a.x, a.y);
+  await page.mouse.move(b.x, b.y + 3, { steps: 3 });
+  await expect(page.locator('.snap-guide.axis')).toHaveCount(1);
+  await page.mouse.click(b.x, b.y + 3);
+  await page.mouse.click((await sheetPoint(page, 0.8, 0.3)).x, (await sheetPoint(page, 0.8, 0.3)).y);
+  await page.keyboard.press('Enter');
+  const dlg = page.getByRole('dialog', { name: /^New (zone|equipment closet)$/ });
+  await dlg.getByLabel('Name', { exact: true }).fill('Drawn');
+  await dlg.getByRole('button', { name: 'Save zone' }).click();
+  await expect(dlg).toHaveCount(0);
+  await expect
+    .poll(async () => {
+      const zones = await (await api.get(`/api/projects/${proj.id}/zones`)).json();
+      const p = zones.find((z: any) => z.name === 'Drawn')?.points;
+      return p ? p[0][1] === p[1][1] : false;
+    })
+    .toBe(true);
+});
+
 test('double-click an outline adds a draggable corner; double-click a corner removes it', async ({
   page,
 }) => {
@@ -217,10 +280,10 @@ test('admins set snap strengths, which apply in open editors', async ({ page }) 
   expect((await pts('B'))[0]).not.toEqual([0.3, 0.3]); // off: no pull
 
   // a change reaches the open editor without a reload
-  await api.put('/api/device-library/snap', { data: { cornerPx: 40, edgePx: 0, linePx: 0 } });
+  await api.put('/api/device-library/snap', { data: { cornerPx: 40, edgePx: 0, axisDeg: 0, linePx: 0 } });
   await page.waitForTimeout(500);
   const [x, y] = (await pts('B'))[0];
   await drag(page, await sheetPoint(page, x, y), { x: target.x + 25, y: target.y + 25 });
   await expect.poll(async () => (await pts('B'))[0]).toEqual([0.3, 0.3]); // on, and reaching further
-  await api.put('/api/device-library/snap', { data: { cornerPx: 16, edgePx: 10, linePx: 5 } });
+  await api.put('/api/device-library/snap', { data: { cornerPx: 16, edgePx: 10, axisDeg: 3, linePx: 5 } });
 });

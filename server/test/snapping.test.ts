@@ -82,14 +82,16 @@ describe('snapping settings', () => {
     expect((await admin.get('/api/device-library')).json.snap).toEqual({
       cornerPx: 16,
       edgePx: 10,
+      axisDeg: 3,
       linePx: 5,
     });
-    const next = { cornerPx: 30, edgePx: 0, linePx: 7 };
+    const next = { cornerPx: 30, edgePx: 0, axisDeg: 4.5, linePx: 7 };
     expect((await admin.put('/api/device-library/snap', next)).json).toEqual(next);
     expect((await admin.get('/api/device-library')).json.snap).toEqual(next);
     expect((await admin.put('/api/device-library/snap', { ...next, edgePx: 2 })).status).toBe(200);
     expect((await admin.put('/api/device-library/snap', { ...next, cornerPx: 99 })).status).toBe(400);
     expect((await admin.put('/api/device-library/snap', { ...next, linePx: -1 })).status).toBe(400);
+    expect((await admin.put('/api/device-library/snap', { ...next, axisDeg: 20 })).status).toBe(400);
 
     await admin.post('/api/users', {
       email: 'snap-ed@example.com',
