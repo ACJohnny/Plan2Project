@@ -124,6 +124,7 @@ export function Palette() {
                   <span className="tag" style={{ background: c.color }}>
                     {t.code}
                   </span>
+                  {t.iconUrl && <img className="type-icon" src={t.iconUrl} alt="" />}
                   <span className="palette-name">{t.name}</span>
                 </button>
               ))}

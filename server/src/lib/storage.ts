@@ -3,12 +3,16 @@ import { createReadStream } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import sharp from 'sharp';
+import { HttpError } from './auth';
 
 sharp.cache(false);
 sharp.concurrency(2);
 
 export const THUMB_WIDTH = 600;
 export const PREVIEW_MAX_WIDTH = 8000;
+export const ICON_PX = 256;
+export const ICON_MAX_MB = 2;
+const ICON_FORMATS = ['png', 'jpeg', 'webp', 'svg'];
 
 export interface SheetFiles {
   imagePath: string;
@@ -64,7 +68,7 @@ export class Storage {
   }
 
   async init() {
-    for (const d of ['sheets', 'uploads', 'tmp'])
+    for (const d of ['sheets', 'icons', 'uploads', 'tmp'])
       await fs.mkdir(path.join(this.root, d), { recursive: true });
   }
 
@@ -100,6 +104,42 @@ export class Storage {
       await fs.rename(this.abs(thumbPath) + '.tmp', this.abs(thumbPath));
     }
     return { imagePath, previewPath, thumbPath, widthPx: meta.width, heightPx: meta.height, previewWidthPx };
+  }
+
+  /**
+   * Normalize an uploaded device icon (PNG, JPG, WebP or SVG) to a square transparent PNG under a
+   * content-hashed name. Only the PNG is ever served, so an uploaded SVG never reaches a browser.
+   */
+  async storeIcon(buf: Buffer): Promise<string> {
+    const bad = new HttpError(415, 'Icons must be PNG, JPG, WebP or SVG images');
+    let meta;
+    try {
+      meta = await sharp(buf).metadata();
+    } catch {
+      throw bad;
+    }
+    if (!meta.format || !ICON_FORMATS.includes(meta.format) || !meta.width || !meta.height) throw bad;
+    // SVGs render at their nominal size, so a 24 × 24 icon needs a higher density to stay sharp
+    const svg = meta.format === 'svg';
+    if (svg && /<!ENTITY/i.test(buf.toString('utf8'))) throw bad;
+    const density = svg
+      ? Math.min(2400, Math.ceil((72 * ICON_PX * 2) / Math.max(meta.width, meta.height)))
+      : undefined;
+    let png: Buffer;
+    try {
+      png = await sharp(buf, density ? { density } : {})
+        .resize(ICON_PX, ICON_PX, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+        .png()
+        .toBuffer();
+    } catch {
+      throw bad;
+    }
+    const rel = `icons/${createHash('sha256').update(png).digest('hex').slice(0, 32)}.png`;
+    if (!(await exists(this.abs(rel)))) {
+      await fs.writeFile(this.abs(rel) + '.tmp', png);
+      await fs.rename(this.abs(rel) + '.tmp', this.abs(rel));
+    }
+    return rel;
   }
 
   async thumbOnly(src: string, dest: string): Promise<void> {

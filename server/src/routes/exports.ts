@@ -120,6 +120,8 @@ export const exportRoutes: FastifyPluginAsyncZod = async (app) => {
         markers: d.markers,
         zones: d.zones,
         coverage: coverageMap(d),
+        typeIcons: new Map(d.lib.types.flatMap((t) => (t.iconUrl ? [[t.id, iconPathOf(t.iconUrl)]] : []))),
+        hiddenLabels: hiddenLabels(d),
         summary: d.summary,
         extraWireFt: d.project.extraWireFt,
         logoPath: fs.existsSync(logo) ? logo : null,
@@ -168,6 +170,17 @@ export const exportRoutes: FastifyPluginAsyncZod = async (app) => {
     },
   );
 };
+
+/** Stored path of an icon from its URL (/files/icons/x.png → icons/x.png). */
+const iconPathOf = (url: string): string => url.replace(/^\/files\//, '');
+
+/** Devices with an icon whose code + number should not print below it. */
+function hiddenLabels(d: Awaited<ReturnType<typeof loadProjectData>>): Set<string> {
+  const types = new Map(d.lib.types.map((t) => [t.id, t]));
+  return new Set(
+    d.markers.filter((m) => !(m.iconLabel ?? types.get(m.typeId)?.iconLabel ?? true)).map((m) => m.id),
+  );
+}
 
 /** Effective coverage for every device whose coverage is on. */
 function coverageMap(d: Awaited<ReturnType<typeof loadProjectData>>): Map<string, ResolvedCoverage> {

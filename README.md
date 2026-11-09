@@ -99,6 +99,14 @@ Every change saves as you go. The toolbar shows Saved / Saving… / Offline, cha
 - **Audio zones:** a room with audio devices gets an audio format (Stereo, 5.0, 5.1, 7.1).
 - **Summary:** Project menu → **Summary** lists audio zones by format and cable totals per wire type. It also lists devices whose runs can't be measured yet, and why. The same summary is the last page of the PDF. The CSV adds `zone`, `closet`, `wires` and `run_ft` columns. `GET /api/projects/:id/summary` returns it as JSON.
 
+## Device icons
+
+Admins can add an icon to any device type (Admin → Device library → Edit: PNG, JPG, WebP or SVG, up to 2 MB). Devices of that type then show the icon instead of the code tag, on the plan and in the PDF. Types without an icon keep the tag.
+
+The code and number (`CAM1`) print below the icon by default. The type sets that default, and each device has a checkbox in its side panel to override it.
+
+Uploads are converted to a 256 px transparent PNG under `/data/icons`; the original file isn't kept.
+
 ## Wire paths and coverage areas
 
 - **Wire paths:** tick **Wire paths** in the toolbar to draw each device's right-angle run to its equipment closet: device → riser on other floors, and a dark trunk from the riser to the closet. The selected device's path is solid; the rest are dashed. The setting is remembered per browser.

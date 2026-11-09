@@ -100,6 +100,10 @@ export interface PdfInput {
   }[];
   /** effective coverage per marker id (only devices whose coverage is on) */
   coverage?: Map<string, ResolvedCoverage>;
+  /** stored icon path per device type id (types without one draw the code tag) */
+  typeIcons?: Map<string, string>;
+  /** marker ids whose code + number is not printed below their icon */
+  hiddenLabels?: Set<string>;
   types: Map<string, ExportType>;
   markers: ExportMarker[];
   zones?: {
@@ -138,6 +142,21 @@ export async function buildPdf(storage: Storage, input: PdfInput): Promise<Uint8
   const text = (p: PDFPage, s: string, x: number, y: number, size: number, font: PDFFont, color = INK) =>
     p.drawText(safe(s), { x, y, size, font, color });
   const w = (s: string, font: PDFFont, size: number) => font.widthOfTextAtSize(safe(s), size);
+
+  // device icons in use, embedded once each; a missing file falls back to the code tag
+  const icons = new Map<string, PDFImage>();
+  const usedTypes = new Set(input.markers.map((m) => m.typeId));
+  const byPath = new Map<string, PDFImage>();
+  for (const [typeId, rel] of input.typeIcons ?? []) {
+    if (!usedTypes.has(typeId)) continue;
+    try {
+      let img = byPath.get(rel);
+      if (!img) byPath.set(rel, (img = await doc.embedPng(await fs.readFile(storage.abs(rel)))));
+      icons.set(typeId, img);
+    } catch {
+      /* draw the tag instead */
+    }
+  }
 
   /* ---------- one 11×17 page per floor ---------- */
   const L = floorPageLayout();
@@ -289,6 +308,42 @@ export async function buildPdf(storage: Storage, input: PdfInput): Promise<Uint8
       const bw = tw + 6;
       const bh = 10;
       const pt = markerPoint(rect, m.x, m.y);
+      const icon = icons.get(m.typeId);
+      if (icon) {
+        const box = 16;
+        const color = hex(t?.color ?? '#6b7280');
+        page.drawRectangle({
+          x: pt.x - box / 2,
+          y: pt.y - box / 2,
+          width: box,
+          height: box,
+          color: WHITE,
+          borderColor: color,
+          borderWidth: 0.8,
+        });
+        page.drawImage(icon, {
+          x: pt.x - box / 2 + 1,
+          y: pt.y - box / 2 + 1,
+          width: box - 2,
+          height: box - 2,
+        });
+        if (!input.hiddenLabels?.has(m.id)) {
+          const ls = 5.5;
+          const lw = w(tag, F.monoBold, ls);
+          const top = pt.y - box / 2 - 1;
+          page.drawRectangle({
+            x: pt.x - lw / 2 - 2,
+            y: top - 8,
+            width: lw + 4,
+            height: 8,
+            color,
+            borderColor: WHITE,
+            borderWidth: 0.4,
+          });
+          text(page, tag, pt.x - lw / 2, top - 6, ls, F.monoBold, WHITE);
+        }
+        continue;
+      }
       page.drawRectangle({
         x: pt.x - bw / 2,
         y: pt.y - bh / 2,
@@ -302,7 +357,7 @@ export async function buildPdf(storage: Storage, input: PdfInput): Promise<Uint8
     }
 
     // legend: only the types used on this floor, with counts
-    drawLegend(page, L.legend, ms, input.types, F, text, w);
+    drawLegend(page, L.legend, ms, input.types, F, text, w, icons);
   }
 
   /* ---------- letter portrait schedule ---------- */
@@ -345,6 +400,7 @@ function drawLegend(
   F: Record<FontKey, PDFFont>,
   text: TextFn,
   w: WidthFn,
+  icons: Map<string, PDFImage>,
 ) {
   page.drawRectangle({ x: r.x, y: r.y, width: r.w, height: r.h, borderColor: RULE, borderWidth: 0.5 });
   let y = r.y + r.h - 18;
@@ -358,9 +414,18 @@ function drawLegend(
   if (!used.length) text(page, 'No devices on this floor', r.x + 10, y, 8, F.sans, MUTED);
   for (const t of used) {
     if (y < r.y + 14) break;
-    const cw = w(t.code, F.monoBold, 7) + 6;
-    page.drawRectangle({ x: r.x + 10, y: y - 3, width: cw, height: 11, color: hex(t.color) });
-    text(page, t.code, r.x + 13, y, 7, F.monoBold, WHITE);
+    const icon = icons.get(t.id);
+    if (icon) page.drawImage(icon, { x: r.x + 10, y: y - 3, width: 11, height: 11 });
+    const inset = used.some((u) => icons.has(u.id)) ? 14 : 0;
+    const cw = w(t.code, F.monoBold, 7) + 6 + inset;
+    page.drawRectangle({
+      x: r.x + 10 + inset,
+      y: y - 3,
+      width: cw - inset,
+      height: 11,
+      color: hex(t.color),
+    });
+    text(page, t.code, r.x + 13 + inset, y, 7, F.monoBold, WHITE);
     const n = String(counts.get(t.id));
     text(
       page,

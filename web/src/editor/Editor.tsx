@@ -175,7 +175,7 @@ export function EditorPage() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
-      if (t.closest('input, textarea, select, [contenteditable=true], .modal')) return;
+      if (t.closest('input:not([type=checkbox]), textarea, select, [contenteditable=true], .modal')) return;
       const s = getState();
       const mod = e.ctrlKey || e.metaKey;
       const k = e.key;

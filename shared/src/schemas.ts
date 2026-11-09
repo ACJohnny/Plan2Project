@@ -187,6 +187,10 @@ export const DeviceType = z.object({
   wires: z.array(z.object({ wireTypeId: Id, count: z.number().int().min(1).max(20) })),
   /** null = this type has no coverage area */
   coverage: TypeCoverage.nullable(),
+  /** optional icon drawn instead of the code tag; null = use the tag */
+  iconUrl: z.string().nullable(),
+  /** with an icon: print code + number below it by default */
+  iconLabel: z.boolean(),
 });
 export type DeviceType = z.infer<typeof DeviceType>;
 export const WireType = z.object({ id: Id, name: z.string(), sortOrder: z.number(), inUse: z.number() });
@@ -213,6 +217,7 @@ export const CreateTypeBody = z.object({
   defaultModel: z.string().max(200).default(''),
   defaultNotes: z.string().max(2000).default(''),
   coverage: TypeCoverage.nullable().optional(),
+  iconLabel: z.boolean().optional(),
 });
 export const UpdateTypeBody = CreateTypeBody.partial().extend({
   sortOrder: z.number().int().optional(),
@@ -242,6 +247,8 @@ export const Marker = z.object({
   closetZoneId: Id.nullable(),
   /** coverage overrides; null = all type defaults */
   coverage: MarkerCoverage.nullable(),
+  /** with an icon: print code + number below it; null = the type's default */
+  iconLabel: z.boolean().nullable(),
   createdBy: Id.nullable(),
   updatedBy: Id.nullable(),
   updatedAt: ts,
@@ -282,6 +289,7 @@ export const MarkerFields = z.object({
   notes: z.string().max(5000).default(''),
   closetZoneId: Id.nullable().optional(),
   coverage: MarkerCoverage.nullable().optional(),
+  iconLabel: z.boolean().nullable().optional(),
 });
 
 /** PUT /api/markers/:id — upsert by client UUID. Omit `number` (or set autoNumber) to have the server assign it. */

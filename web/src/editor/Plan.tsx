@@ -675,6 +675,8 @@ export function Plan() {
               m={m}
               tag={tagOf(m)}
               color={colorOf(m.typeId)}
+              icon={typeOf(m.typeId)?.iconUrl ?? null}
+              showLabel={m.iconLabel ?? typeOf(m.typeId)?.iconLabel ?? true}
               w={floor.widthPx}
               h={floor.heightPx}
               selected={selSet.has(m.id)}
@@ -762,6 +764,8 @@ const MarkerPin = memo(function MarkerPin({
   m,
   tag,
   color,
+  icon,
+  showLabel,
   w,
   h,
   selected,
@@ -769,10 +773,29 @@ const MarkerPin = memo(function MarkerPin({
   m: Marker;
   tag: string;
   color: string;
+  icon: string | null;
+  showLabel: boolean;
   w: number;
   h: number;
   selected: boolean;
 }) {
+  if (icon)
+    return (
+      <div
+        className={`marker has-icon ${selected ? 'selected' : ''}`}
+        data-marker={m.id}
+        style={{ '--x': m.x * w, '--y': m.y * h, '--c': color } as React.CSSProperties}
+        title={`${tag}${m.room ? ` · ${m.room}` : ''}`}
+        aria-label={tag}
+      >
+        <img src={icon} alt="" draggable={false} />
+        {showLabel && (
+          <span className="marker-label" style={{ background: color }}>
+            {tag}
+          </span>
+        )}
+      </div>
+    );
   return (
     <div
       className={`marker ${selected ? 'selected' : ''}`}

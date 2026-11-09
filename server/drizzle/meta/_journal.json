@@ -29,6 +29,13 @@
       "when": 1794108655231,
       "tag": "0003_coverage",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794201411012,
+      "tag": "0004_device_icons",
+      "breakpoints": true
     }
   ]
 }

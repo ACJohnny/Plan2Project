@@ -53,6 +53,7 @@ export function markerDto(m: typeof s.markers.$inferSelect): Marker {
     notes: m.notes,
     closetZoneId: m.closetZoneId,
     coverage: m.coverage ?? null,
+    iconLabel: m.iconLabel ?? null,
     createdBy: m.createdBy,
     updatedBy: m.updatedBy,
     updatedAt: m.updatedAt.toISOString(),

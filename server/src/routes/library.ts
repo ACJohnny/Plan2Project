@@ -23,6 +23,7 @@ import {
 import type { DB } from '../db';
 import { deviceCategories, deviceTypes, deviceTypeWires, wireTypes, zoneNames } from '../db/schema';
 import { HttpError, requireRole, requireUser } from '../lib/auth';
+import { fileUrl, ICON_MAX_MB } from '../lib/storage';
 
 const P = z.object({ id: Id });
 
@@ -125,6 +126,8 @@ export async function loadLibrary(db: DB): Promise<Library> {
       inUse: used.get(t.id) ?? 0,
       wires: wiresOf.get(t.id) ?? [],
       coverage: t.coverage ?? null,
+      iconUrl: t.iconPath ? fileUrl(t.iconPath) : null,
+      iconLabel: t.iconLabel,
     })),
   };
 }
@@ -262,6 +265,56 @@ export const libraryRoutes: FastifyPluginAsyncZod = async (app) => {
       const [t] = Object.keys(patch).length
         ? await db.update(deviceTypes).set(patch).where(eq(deviceTypes.id, req.params.id)).returning()
         : await db.select().from(deviceTypes).where(eq(deviceTypes.id, req.params.id));
+      if (!t) throw new HttpError(404, 'Device type not found');
+      changed(req);
+      return (await loadLibrary(db)).types.find((x) => x.id === t.id)!;
+    },
+  );
+
+  app.post(
+    '/api/device-library/types/:id/icon',
+    {
+      schema: {
+        tags: ['library'],
+        params: P,
+        consumes: ['multipart/form-data'],
+        description: 'Set the icon (multipart "file": PNG, JPG, WebP or SVG, up to 2 MB).',
+        response: { 200: DeviceType },
+      },
+      preHandler: admin,
+    },
+    async (req) => {
+      const file = await req.file({ limits: { fileSize: ICON_MAX_MB * 1024 * 1024, files: 1 } });
+      if (!file) throw new HttpError(400, 'No file in the request');
+      let buf: Buffer;
+      try {
+        buf = await file.toBuffer();
+      } catch (e: any) {
+        if (e.code === 'FST_REQ_FILE_TOO_LARGE')
+          throw new HttpError(413, `Icons can be up to ${ICON_MAX_MB} MB`);
+        throw e;
+      }
+      const iconPath = await app.ctx.storage.storeIcon(buf);
+      const [t] = await db
+        .update(deviceTypes)
+        .set({ iconPath })
+        .where(eq(deviceTypes.id, req.params.id))
+        .returning();
+      if (!t) throw new HttpError(404, 'Device type not found');
+      changed(req);
+      return (await loadLibrary(db)).types.find((x) => x.id === t.id)!;
+    },
+  );
+
+  app.delete(
+    '/api/device-library/types/:id/icon',
+    { schema: { tags: ['library'], params: P, response: { 200: DeviceType } }, preHandler: admin },
+    async (req) => {
+      const [t] = await db
+        .update(deviceTypes)
+        .set({ iconPath: null })
+        .where(eq(deviceTypes.id, req.params.id))
+        .returning();
       if (!t) throw new HttpError(404, 'Device type not found');
       changed(req);
       return (await loadLibrary(db)).types.find((x) => x.id === t.id)!;

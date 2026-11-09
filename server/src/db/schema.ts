@@ -183,6 +183,8 @@ export const deviceTypes = pgTable(
     sortOrder: integer('sort_order').notNull().default(0),
     retiredAt: tstz('retired_at'),
     coverage: jsonb('coverage').$type<TypeCoverage>(),
+    iconPath: text('icon_path'),
+    iconLabel: boolean('icon_label').notNull().default(true),
   },
   (t) => [uniqueIndex('device_types_code_uq').on(t.code)],
 );
@@ -208,6 +210,7 @@ export const markers = pgTable(
     notes: text('notes').notNull().default(''),
     closetZoneId: uuid('closet_zone_id'),
     coverage: jsonb('coverage').$type<MarkerCoverage>(),
+    iconLabel: boolean('icon_label'),
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
     updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: created(),

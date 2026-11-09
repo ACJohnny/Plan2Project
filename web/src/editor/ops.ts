@@ -205,6 +205,7 @@ function bodyOf(m: Marker, extra: Partial<PutMarkerBody> = {}): PutMarkerBody {
     notes: m.notes,
     closetZoneId: m.closetZoneId,
     coverage: m.coverage,
+    iconLabel: m.iconLabel,
     ...extra,
   };
 }
@@ -267,6 +268,7 @@ function commit(
         notes: a.notes,
         closetZoneId: a.closetZoneId,
         coverage: a.coverage,
+        iconLabel: a.iconLabel,
         ...(opts.autoNumber?.has(c.id) ? { autoNumber: true } : { number: a.number }),
       });
     }
@@ -325,6 +327,7 @@ export function newMarker(typeId: string, floorId: string, x: number, y: number,
     notes,
     closetZoneId: null,
     coverage: null,
+    iconLabel: null,
     createdBy: null,
     updatedBy: null,
     updatedAt: new Date().toISOString(),
@@ -400,7 +403,9 @@ export function nudge(ids: string[], dx: number, dy: number) {
 /** R-40, R-45: field edits on one or more markers. */
 export function editMarkers(
   ids: string[],
-  patch: Partial<Pick<Marker, 'room' | 'mountHeight' | 'notes' | 'number' | 'closetZoneId' | 'coverage'>>,
+  patch: Partial<
+    Pick<Marker, 'room' | 'mountHeight' | 'notes' | 'number' | 'closetZoneId' | 'coverage' | 'iconLabel'>
+  >,
   field: string,
 ) {
   const s = getState();

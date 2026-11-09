@@ -144,6 +144,7 @@ function SingleEditor({ m }: { m: Marker }) {
   return (
     <section className="editor-card" aria-label={`Edit ${tagOf(m)}`}>
       <div className="editor-head">
+        {t?.iconUrl && <img className="type-icon lg" src={t.iconUrl} alt="" />}
         <span className="tag tag-lg" style={{ background: colorOf(m.typeId) }}>
           {tagOf(m)}
         </span>
@@ -222,6 +223,19 @@ function SingleEditor({ m }: { m: Marker }) {
         <textarea id={`${ids}-notes`} rows={3} disabled={!canEdit} {...notes} maxLength={5000} />
       </div>
       <Cabling m={m} />
+      {t?.iconUrl && (
+        <div className="cabling">
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={m.iconLabel ?? t.iconLabel}
+              disabled={!canEdit}
+              onChange={(e) => editMarkers([m.id], { iconLabel: e.target.checked }, 'iconLabel')}
+            />{' '}
+            Print {tagOf(m)} below the icon
+          </label>
+        </div>
+      )}
       <CoverageEditor key={m.id} m={m} />
       {canEdit && (
         <button className="btn btn-danger-ghost btn-block" onClick={() => deleteMarkers([m.id])}>

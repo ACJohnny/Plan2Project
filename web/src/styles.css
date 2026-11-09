@@ -1136,6 +1136,69 @@ input[type='radio'] {
   cursor: pointer;
   contain: layout style;
 }
+/* an icon centred on the device's point, with its code + number hanging below */
+.marker.has-icon {
+  width: 34px;
+  min-width: 0;
+  height: 34px;
+  padding: 2px;
+  box-sizing: border-box;
+  display: block;
+  border: 2px solid var(--c);
+  border-radius: 6px;
+  background: #fff;
+}
+.marker.has-icon img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+.marker-label {
+  position: absolute;
+  top: calc(100% + 3px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 2px 4px;
+  border: 1px solid #fff;
+  border-radius: 3px;
+  color: #fff;
+  font: 600 10px/1 var(--font-mono);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.3);
+}
+.type-icon {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  object-fit: contain;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+.type-icon.lg {
+  width: 32px;
+  height: 32px;
+}
+.type-icon.xl {
+  width: 56px;
+  height: 56px;
+  margin: 0;
+  padding: 4px;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+}
+.type-icon.xl.empty {
+  display: inline-block;
+  border-style: dashed;
+}
+.icon-edit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
 .marker.selected {
   outline: 3px solid var(--accent);
   outline-offset: 2px;

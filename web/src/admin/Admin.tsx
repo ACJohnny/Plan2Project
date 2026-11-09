@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Navigate } from 'react-router-dom';
 import {
   whiteTextContrast,
@@ -10,7 +10,7 @@ import {
   type User,
   type ZoneName,
 } from '@sixpoint/shared';
-import { api } from '../api';
+import { api, uploadFile } from '../api';
 import { useAuth } from '../auth';
 import { AppHeader } from '../components/AppHeader';
 import { Confirm, Modal } from '../components/ui';
@@ -370,6 +370,7 @@ function LibraryAdmin() {
                           .join(', ')}
                       </span>
                     )}
+                    {t.iconUrl && <img className="type-icon" src={t.iconUrl} alt={`${t.code} icon`} />}
                     {t.coverage && (
                       <span className="muted small">
                         {' '}
@@ -397,7 +398,11 @@ function LibraryAdmin() {
                     >
                       ↓
                     </button>
-                    <button className="btn btn-sm" onClick={() => setEditType(t)}>
+                    <button
+                      className="btn btn-sm"
+                      aria-label={`Edit ${t.code}`}
+                      onClick={() => setEditType(t)}
+                    >
                       Edit
                     </button>
                     {t.retiredAt ? (
@@ -540,7 +545,18 @@ function TypeDialog({
     name: type?.name ?? '',
     defaultModel: type?.defaultModel ?? '',
     defaultNotes: type?.defaultNotes ?? '',
+    iconLabel: type?.iconLabel ?? true,
   });
+  const [iconFile, setIconFile] = useState<File | null>(null);
+  const [iconRemoved, setIconRemoved] = useState(false);
+  const iconPreview = useMemo(() => (iconFile ? URL.createObjectURL(iconFile) : null), [iconFile]);
+  useEffect(
+    () => () => {
+      if (iconPreview) URL.revokeObjectURL(iconPreview);
+    },
+    [iconPreview],
+  );
+  const iconShown = iconPreview ?? (iconRemoved ? null : (type?.iconUrl ?? null));
   const [wires, setWires] = useState(type?.wires ?? []);
   const [cov, setCov] = useState<TypeCoverage | null>(type?.coverage ?? null);
   const codeOk = /^[A-Z]{1,6}$/.test(f.code);
@@ -553,11 +569,21 @@ function TypeDialog({
           e.preventDefault();
           try {
             const clean = wires.filter((w) => w.wireTypeId && w.count > 0);
+            let id = type?.id;
             if (type)
               await api.patch(`/api/device-library/types/${type.id}`, { ...f, wires: clean, coverage: cov });
             else {
               const t = await api.post<DeviceType>('/api/device-library/types', { ...f, coverage: cov });
+              id = t.id;
               if (clean.length) await api.patch(`/api/device-library/types/${t.id}`, { wires: clean });
+            }
+            // the device is saved by now, so an icon problem shouldn't keep the dialog open
+            try {
+              if (iconFile)
+                await uploadFile(`/api/device-library/types/${id}/icon`, iconFile, () => {}).promise;
+              else if (iconRemoved && type?.iconUrl) await api.del(`/api/device-library/types/${id}/icon`);
+            } catch (err: any) {
+              toast.error(`${f.code} was saved, but not its icon: ${err.message}`);
             }
             onDone();
             onClose();
@@ -614,6 +640,60 @@ function TypeDialog({
           />
           <span className="muted small">Both are copied into a new marker's notes when it's placed.</span>
         </label>
+        <fieldset className="span-2 wires-edit">
+          <legend>Icon (optional)</legend>
+          <div className="icon-edit">
+            {iconShown ? (
+              <img className="type-icon xl" src={iconShown} alt="Icon preview" />
+            ) : (
+              <span className="type-icon xl empty" aria-hidden="true" />
+            )}
+            <label className="btn btn-sm">
+              {iconShown ? 'Replace…' : 'Choose icon…'}
+              <input
+                className="sr-only"
+                type="file"
+                aria-label="Icon file"
+                accept=".png,.jpg,.jpeg,.webp,.svg,image/png,image/jpeg,image/webp,image/svg+xml"
+                onChange={(e) => {
+                  const file = e.target.files?.[0] ?? null;
+                  if (file && file.size > 2 * 1024 * 1024) {
+                    toast.error('Icons can be up to 2 MB');
+                    return;
+                  }
+                  setIconFile(file);
+                  if (file) setIconRemoved(false);
+                }}
+              />
+            </label>
+            {iconShown && (
+              <button
+                type="button"
+                className="btn btn-sm"
+                onClick={() => {
+                  setIconFile(null);
+                  setIconRemoved(true);
+                }}
+              >
+                Remove
+              </button>
+            )}
+          </div>
+          <span className="muted small">
+            PNG, JPG, WebP or SVG, up to 2 MB. Devices of this type show it on the plan and PDF instead of the
+            code tag.
+          </span>
+          {iconShown && (
+            <label className="check-row">
+              <input
+                type="checkbox"
+                checked={f.iconLabel}
+                onChange={(e) => setF({ ...f, iconLabel: e.target.checked })}
+              />{' '}
+              Print the code and number below the icon by default (each device can change this)
+            </label>
+          )}
+        </fieldset>
         <fieldset className="span-2 wires-edit">
           <legend>Wires to the equipment closet</legend>
           {wires.map((w, i) => (
