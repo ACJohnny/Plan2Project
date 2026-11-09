@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Navigate } from 'react-router-dom';
 import {
+  DEFAULT_SNAP,
   whiteTextContrast,
   type Category,
   type DeviceType,
   type Library,
   type Role,
+  type SnapSettings,
   type TypeCoverage,
   type User,
   type ZoneName,
@@ -16,7 +18,7 @@ import { AppHeader } from '../components/AppHeader';
 import { Confirm, Modal } from '../components/ui';
 import { toast } from '../toast';
 
-type Tab = 'users' | 'library' | 'zones' | 'tokens';
+type Tab = 'users' | 'library' | 'zones' | 'snap' | 'tokens';
 
 export function AdminPage() {
   const { can } = useAuth();
@@ -38,6 +40,7 @@ export function AdminPage() {
               ['users', 'Users'],
               ['library', 'Device library'],
               ['zones', 'Zone names'],
+              ['snap', 'Snapping'],
               ['tokens', 'API tokens'],
             ] as [Tab, string][]
           ).map(([k, l]) => (
@@ -55,6 +58,7 @@ export function AdminPage() {
         {tab === 'users' && <UsersAdmin />}
         {tab === 'library' && <LibraryAdmin />}
         {tab === 'zones' && <ZoneNamesAdmin />}
+        {tab === 'snap' && <SnapAdmin />}
         {tab === 'tokens' && <TokensAdmin />}
       </main>
     </>
@@ -997,6 +1001,75 @@ function WireTypesAdmin({ lib, onChange }: { lib: Library; onChange: () => void 
 }
 
 /* ---------- zone names (autocomplete when naming zones and rooms) ---------- */
+
+const SNAP_FIELDS: { key: keyof SnapSettings; label: string; note: string }[] = [
+  { key: 'cornerPx', label: "Another zone's corner", note: 'Usually the strongest.' },
+  { key: 'edgePx', label: "Another zone's edge", note: 'Closes the gap between neighbouring rooms.' },
+  {
+    key: 'linePx',
+    label: 'Lines on the drawing',
+    note: 'Keep this light so it is easy to drag past. Each project can turn this one off.',
+  },
+];
+
+function SnapAdmin() {
+  const [f, setF] = useState<SnapSettings | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    api.get<Library>('/api/device-library').then(
+      (l) => setF(l.snap),
+      (e) => toast.error(e.message),
+    );
+  }, []);
+  if (!f) return <p className="muted">Loading…</p>;
+  const save = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      setF(await api.put<SnapSettings>('/api/device-library/snap', f));
+      toast.success('Snapping saved');
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="card">
+      <h2>Snapping</h2>
+      <p className="muted small">
+        How strongly a zone corner is pulled while it's dragged or drawn: the distance, in pixels on screen,
+        at which it snaps. Higher is stronger; 0 turns that snap off. When several are in reach, a corner
+        beats an edge, and an edge beats a line. Hold Alt while dragging to turn snapping off for a moment.
+      </p>
+      <form className="snap-form" onSubmit={save}>
+        {SNAP_FIELDS.map(({ key, label, note }) => (
+          <label className="field" key={key}>
+            <span>{label} (px)</span>
+            <input
+              type="number"
+              min={0}
+              max={60}
+              step={1}
+              required
+              value={f[key]}
+              onChange={(e) => setF({ ...f, [key]: Number(e.target.value) })}
+            />
+            <span className="muted small">{note}</span>
+          </label>
+        ))}
+        <div className="form-actions">
+          <button type="button" className="btn" onClick={() => setF(DEFAULT_SNAP)}>
+            Reset to defaults
+          </button>
+          <button className="btn btn-primary" disabled={busy}>
+            Save
+          </button>
+        </div>
+      </form>
+    </section>
+  );
+}
 
 function ZoneNamesAdmin() {
   const [names, setNames] = useState<ZoneName[] | null>(null);

@@ -76,6 +76,7 @@ export const projects = pgTable(
     /** extra wire added to every cable run, feet */
     extraWireFt: doublePrecision('extra_wire_ft').notNull().default(0),
     markerScale: doublePrecision('marker_scale').notNull().default(1),
+    snapToLines: boolean('snap_to_lines').notNull().default(true),
     /** Phase 2: tokenized read-only share link */
     shareToken: text('share_token').unique(),
   },
@@ -247,6 +248,13 @@ export const wireTypes = pgTable('wire_types', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull().unique(),
   sortOrder: integer('sort_order').notNull().default(0),
+});
+
+/** App-wide settings an admin can change, one row per setting. */
+export const appSettings = pgTable('app_settings', {
+  key: text('key').primaryKey(),
+  value: jsonb('value').notNull(),
+  updatedAt: tstz('updated_at').notNull().defaultNow(),
 });
 
 export const zoneNames = pgTable(

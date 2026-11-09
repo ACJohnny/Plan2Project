@@ -1706,6 +1706,24 @@ input[type='radio'] {
   background: transparent;
   text-decoration: line-through;
 }
+.snap-guide {
+  fill: none;
+  stroke: #e0007a;
+  stroke-width: calc(var(--px, 1) * 2px);
+  pointer-events: none;
+}
+.snap-guide.corner {
+  stroke-width: calc(var(--px, 1) * 2.5px);
+}
+.snap-guide.line {
+  stroke-dasharray: calc(var(--px, 1) * 6px) calc(var(--px, 1) * 4px);
+}
+.snap-form {
+  display: grid;
+  gap: 14px;
+  max-width: 420px;
+  margin-top: 12px;
+}
 .zone-show-name {
   grid-column: 1 / -1;
 }

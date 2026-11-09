@@ -62,6 +62,7 @@ export function EditorPage() {
           types: lib.types,
           wireTypes: lib.wireTypes,
           zoneNames: lib.zoneNames.map((z) => z.name),
+          snap: lib.snap,
           markers: Object.fromEntries(ms.map((m) => [m.id, m])),
           zones: Object.fromEntries(zs.map((z) => [z.id, z])),
         });
@@ -143,6 +144,7 @@ export function EditorPage() {
         types: lib.types,
         wireTypes: lib.wireTypes,
         zoneNames: lib.zoneNames.map((z) => z.name),
+        snap: lib.snap,
       });
     });
     es.addEventListener('presence', (ev) =>

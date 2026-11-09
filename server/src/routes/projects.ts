@@ -149,6 +149,7 @@ export const projectRoutes: FastifyPluginAsyncZod = async (app) => {
             notes: src.notes,
             extraWireFt: src.extraWireFt,
             markerScale: src.markerScale,
+            snapToLines: src.snapToLines,
             createdBy: req.user!.id,
             updatedBy: req.user!.id,
           })

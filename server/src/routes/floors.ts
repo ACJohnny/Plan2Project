@@ -7,6 +7,7 @@ import {
   aspectDiff,
   Floor,
   Id,
+  SheetLinesDto,
   PickPagesBody,
   ReorderFloorsBody,
   SheetRevision,
@@ -88,6 +89,21 @@ export const floorRoutes: FastifyPluginAsyncZod = async (app) => {
     hub.publish(projectId, { type: 'floor.upsert', origin: req.clientId, floors: [floorDto(f)] });
     return uploadDto(done);
   }
+
+  app.get(
+    '/api/floors/:id/sheet-lines',
+    {
+      schema: {
+        tags: ['floors'],
+        params: P,
+        description:
+          'Horizontal and vertical lines found on the sheet, as fractions: h is [y, xStart, xEnd], v is [x, yStart, yEnd].',
+        response: { 200: SheetLinesDto },
+      },
+      preHandler: requireUser,
+    },
+    async (req) => storage.sheetLines((await liveFloor(req.params.id)).imagePath),
+  );
 
   app.post(
     '/api/projects/:id/uploads',

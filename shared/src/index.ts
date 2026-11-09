@@ -5,3 +5,4 @@ export * from './text';
 export * from './schemas';
 export * from './cable';
 export * from './coverage';
+export * from './snap';

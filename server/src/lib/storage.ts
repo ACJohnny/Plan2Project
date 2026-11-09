@@ -3,7 +3,9 @@ import { createReadStream } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import sharp from 'sharp';
+import type { SheetLines } from '@sixpoint/shared';
 import { HttpError } from './auth';
+import { detectLines } from './sheetLines';
 
 sharp.cache(false);
 sharp.concurrency(2);
@@ -11,6 +13,9 @@ sharp.concurrency(2);
 export const THUMB_WIDTH = 600;
 export const PREVIEW_MAX_WIDTH = 8000;
 export const ICON_PX = 256;
+/** Bump when the detector changes, so sheets get looked at again. */
+const LINES_VERSION = 1;
+const LINES_MAX_WIDTH = 8000;
 export const ICON_MAX_MB = 2;
 const ICON_FORMATS = ['png', 'jpeg', 'webp', 'svg'];
 
@@ -59,6 +64,8 @@ export async function hashFile(file: string): Promise<string> {
 }
 
 export class Storage {
+  private linesJobs = new Map<string, Promise<SheetLines>>();
+
   constructor(public readonly root: string) {}
 
   abs(rel: string): string {
@@ -140,6 +147,35 @@ export class Storage {
       await fs.rename(this.abs(rel) + '.tmp', this.abs(rel));
     }
     return rel;
+  }
+
+  /** Lines on a sheet, worked out the first time they're asked for and kept beside the image. */
+  sheetLines(imagePath: string): Promise<SheetLines> {
+    const rel = imagePath.replace(/\.[a-z]+$/, `.lines${LINES_VERSION}.json`);
+    let job = this.linesJobs.get(rel);
+    if (!job) {
+      job = this.loadLines(imagePath, rel).finally(() => this.linesJobs.delete(rel));
+      this.linesJobs.set(rel, job);
+    }
+    return job;
+  }
+
+  private async loadLines(imagePath: string, rel: string): Promise<SheetLines> {
+    try {
+      return JSON.parse(await fs.readFile(this.abs(rel), 'utf8'));
+    } catch {
+      /* not worked out yet */
+    }
+    const { data, info } = await sharp(this.abs(imagePath), { limitInputPixels: false })
+      .resize({ width: LINES_MAX_WIDTH, withoutEnlargement: true })
+      .flatten({ background: '#ffffff' })
+      .greyscale()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    const lines = detectLines(data, info.width, info.height);
+    await fs.writeFile(this.abs(rel) + '.tmp', JSON.stringify(lines));
+    await fs.rename(this.abs(rel) + '.tmp', this.abs(rel));
+    return lines;
   }
 
   async thumbOnly(src: string, dest: string): Promise<void> {

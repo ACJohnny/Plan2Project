@@ -238,7 +238,12 @@ export function ZoneEditor({ zone }: { zone: Zone }) {
           ))}
         </div>
       )}
-      {canEdit && <p className="muted small">Drag the corner handles on the plan to reshape.</p>}
+      {canEdit && (
+        <p className="muted small">
+          Drag the corner handles on the plan to reshape. Double-click the outline to add a corner, or a
+          corner to remove it. Hold Alt to drag without snapping.
+        </p>
+      )}
       <button className="btn btn-sm" onClick={() => setState({ selectedZone: null })}>
         ← Zones on this floor
       </button>

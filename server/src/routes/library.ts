@@ -5,6 +5,7 @@ import {
   Category,
   CreateCategoryBody,
   CreateTypeBody,
+  DEFAULT_SNAP,
   DeviceType,
   Id,
   Library,
@@ -13,6 +14,7 @@ import {
   SEED_TYPE_COVERAGE,
   SEED_TYPE_WIRES,
   SEED_WIRE_TYPES,
+  SnapSettings,
   UpdateCategoryBody,
   UpdateTypeBody,
   WireType,
@@ -21,12 +23,20 @@ import {
   ZoneNameBody,
 } from '@sixpoint/shared';
 import type { DB } from '../db';
-import { deviceCategories, deviceTypes, deviceTypeWires, wireTypes, zoneNames } from '../db/schema';
+import {
+  appSettings,
+  deviceCategories,
+  deviceTypes,
+  deviceTypeWires,
+  wireTypes,
+  zoneNames,
+} from '../db/schema';
 import { HttpError, requireRole, requireUser } from '../lib/auth';
 import { DEFAULT_ICONS } from '../lib/defaultIcons';
 import { fileUrl, ICON_MAX_MB, type Storage } from '../lib/storage';
 
 const P = z.object({ id: Id });
+const SNAP_KEY = 'snap';
 
 export async function seedLibrary(db: DB) {
   const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(deviceCategories);
@@ -122,7 +132,9 @@ export async function loadLibrary(db: DB): Promise<Library> {
   const wireUse = new Map<string, number>();
   for (const l of links) wireUse.set(l.wireTypeId, (wireUse.get(l.wireTypeId) ?? 0) + 1);
   const zn = await db.select().from(zoneNames).orderBy(asc(zoneNames.sortOrder), asc(zoneNames.name));
+  const snap = (await db.select().from(appSettings).where(eq(appSettings.key, SNAP_KEY)))[0]?.value;
   return {
+    snap: { ...DEFAULT_SNAP, ...(snap as Partial<SnapSettings> | undefined) },
     zoneNames: zn.map((z) => ({ id: z.id, name: z.name, sortOrder: z.sortOrder })),
     wireTypes: wt.map((w) => ({
       id: w.id,
@@ -285,6 +297,30 @@ export const libraryRoutes: FastifyPluginAsyncZod = async (app) => {
       if (!t) throw new HttpError(404, 'Device type not found');
       changed(req);
       return (await loadLibrary(db)).types.find((x) => x.id === t.id)!;
+    },
+  );
+
+  app.put(
+    '/api/device-library/snap',
+    {
+      schema: {
+        tags: ['library'],
+        description: 'How strongly zone corners snap, as pull distances in screen pixels (0 = off).',
+        body: SnapSettings,
+        response: { 200: SnapSettings },
+      },
+      preHandler: admin,
+    },
+    async (req) => {
+      await db
+        .insert(appSettings)
+        .values({ key: SNAP_KEY, value: req.body })
+        .onConflictDoUpdate({
+          target: appSettings.key,
+          set: { value: req.body, updatedAt: new Date() },
+        });
+      changed(req);
+      return req.body;
     },
   );
 

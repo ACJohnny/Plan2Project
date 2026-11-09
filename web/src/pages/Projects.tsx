@@ -226,6 +226,7 @@ export function ProjectDialog({
     extraWireFt: String(project?.extraWireFt ?? 0),
     markerScale: String(project?.markerScale ?? 1),
   });
+  const [snapToLines, setSnapToLines] = useState(project?.snapToLines ?? true);
   const [busy, setBusy] = useState(false);
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) =>
     setF({ ...f, [k]: e.target.value });
@@ -241,10 +242,12 @@ export function ProjectDialog({
             ...fields,
             extraWireFt: extra,
             markerScale,
+            snapToLines,
           })
         : await api.patch<Project>(`/api/projects/${(await api.post<Project>('/api/projects', fields)).id}`, {
             extraWireFt: extra,
             markerScale,
+            snapToLines,
           });
       onSaved(p);
       onClose();
@@ -305,6 +308,10 @@ export function ProjectDialog({
           </select>
         </label>
         <p className="muted small field-note">How large devices appear on this project's plans and PDF.</p>
+        <label className="check-row span-2">
+          <input type="checkbox" checked={snapToLines} onChange={(e) => setSnapToLines(e.target.checked)} />{' '}
+          Snap zone outlines to lines on the drawing
+        </label>
         <div className="form-actions span-2">
           <button type="button" className="btn" onClick={onClose}>
             Cancel

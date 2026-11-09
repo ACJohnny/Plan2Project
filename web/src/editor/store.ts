@@ -1,3 +1,4 @@
+import { DEFAULT_SNAP, type SnapSettings } from '@sixpoint/shared';
 import { create } from 'zustand';
 import type {
   Category,
@@ -42,6 +43,7 @@ export interface EditorState {
   zoneEdit: boolean;
   /** admin-managed zone names for autocomplete */
   zoneNames: string[];
+  snap: SnapSettings;
   /** the all-zones table dialog is open */
   zonesTable: boolean;
   /** draw right-angle wire paths to the closets */
@@ -98,6 +100,7 @@ export const initialState = (): EditorState => ({
   selectedZone: null,
   zoneEdit: false,
   zoneNames: [],
+  snap: DEFAULT_SNAP,
   zonesTable: false,
   showWires: pref('spm.showWires', false),
   showCoverage: pref('spm.showCoverage', true),

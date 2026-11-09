@@ -8,11 +8,18 @@ import {
   MAX_ZOOM,
   MIN_ZOOM,
   centroid,
+  fractionToScreen,
+  nearestOnOutline,
   rectPolygon,
   screenToFraction,
+  sheetLinesToPx,
+  snapPoint,
   zoneAt,
+  zoneSnapTargets,
   zoomAt,
   type Marker,
+  type SheetLines,
+  type SnapGuide,
   type View,
   type Zone,
 } from '@sixpoint/shared';
@@ -27,6 +34,7 @@ import {
 import { CoverageHandles, CoverageShapes, dragCoverage, WirePaths, type CoverageHandle } from './Overlays';
 import { planCtl } from './planCtl';
 import { colorOf, getState, setState, tagOf, typeOf, useEditor } from './store';
+import { loadSheetLines } from './sheetLines';
 import { UploadDropZone } from './Uploads';
 import { CalibrateDialog, ZoneDialog } from './ZoneDialogs';
 import { patchFloor, saveZone, newZone, setZoneEdit } from './zones';
@@ -47,7 +55,7 @@ type Gesture =
       alt: boolean;
     }
   | { kind: 'zoneRect'; id: number; sx: number; sy: number; x: number; y: number }
-  | { kind: 'vertex'; id: number; zone: Zone; index: number }
+  | { kind: 'vertex'; id: number; zone: Zone; index: number; before?: Zone }
   | { kind: 'coverage'; id: number; before: Marker; handle: CoverageHandle; grab: { x: number; y: number } }
   | { kind: 'pan'; id: number; lx: number; ly: number }
   | {
@@ -62,6 +70,9 @@ type Gesture =
   | { kind: 'marquee'; id: number; sx: number; sy: number; x: number; y: number; additive: boolean }
   | { kind: 'pinch'; d0: number; m0: { x: number; y: number }; v0: View };
 
+const DOUBLE_CLICK_MS = 400;
+const MAX_ZONE_POINTS = 200;
+
 /** The sheet with its marker overlay (R-28..R-39). */
 export function Plan() {
   const floor = useEditor((s) => s.floors.find((f) => f.id === s.floorId));
@@ -73,6 +84,8 @@ export function Plan() {
   const focus = useEditor((s) => s.focus);
   const types = useEditor((s) => s.types);
   const markerScale = useEditor((s) => s.project?.markerScale ?? 1);
+  const snapToLines = useEditor((s) => s.project?.snapToLines ?? true);
+  const snap = useEditor((s) => s.snap);
   const zonesAll = useEditor((s) => s.zones);
   const tool = useEditor((s) => s.tool);
   const selectedZone = useEditor((s) => s.selectedZone);
@@ -106,6 +119,105 @@ export function Plan() {
     setHover(null);
     setCalibA(null);
   }, [tool, floor?.id]);
+
+  /* ---------- snapping zone corners ---------- */
+  const [guides, setGuides] = useState<SnapGuide[]>([]);
+  const [sheetLines, setSheetLines] = useState<SheetLines | null>(null);
+  const wantLines = canEdit && zoneEdit && snapToLines && snap.linePx > 0;
+  useEffect(() => {
+    setSheetLines(null);
+    if (!wantLines || !floor) return;
+    let stale = false;
+    loadSheetLines(floor).then((l) => {
+      if (!stale) setSheetLines(l);
+    });
+    return () => {
+      stale = true;
+    };
+  }, [wantLines, floor?.id, floor?.imageUrl]);
+  const linePx = useMemo(
+    () => (sheetLines && floor ? sheetLinesToPx(sheetLines, floor.widthPx, floor.heightPx) : null),
+    [sheetLines, floor?.widthPx, floor?.heightPx],
+  );
+  useEffect(() => setGuides([]), [zoneEdit, tool]);
+
+  /** A pointer position in sheet fractions after snapping; holding Alt skips it. */
+  const snapped = (sx: number, sy: number, alt: boolean, excludeZone: string | null) => {
+    const v = viewRef.current!;
+    const f = screenToFraction(v, sheet!, sx, sy);
+    if (alt) {
+      setGuides([]);
+      return f;
+    }
+    const w = floor!.widthPx;
+    const h = floor!.heightPx;
+    const r = snapPoint(
+      [f.x * w, f.y * h],
+      { ...zoneSnapTargets(Object.values(getState().zones), floor!.id, excludeZone, w, h), lines: linePx },
+      { corner: snap.cornerPx / v.scale, edge: snap.edgePx / v.scale, line: snap.linePx / v.scale },
+    );
+    setGuides(r.guides);
+    return { x: r.x / w, y: r.y / h };
+  };
+  const snappedScreen = (sx: number, sy: number, alt: boolean) => {
+    const f = snapped(sx, sy, alt, null);
+    return fractionToScreen(viewRef.current!, sheet!, f.x, f.y);
+  };
+  const lastTap = useRef<{ t: number; x: number; y: number } | null>(null);
+
+  /** The second press of a double-click in Zone Edit: add a corner on an outline, or remove one. */
+  const doubleClickOutline = (
+    e: React.PointerEvent,
+    p: { x: number; y: number },
+    vEl: HTMLElement | null,
+  ) => {
+    const st = getState();
+    const tap = lastTap.current;
+    lastTap.current = null;
+    if (
+      !st.zoneEdit ||
+      !st.canEdit ||
+      st.tool ||
+      e.button !== 0 ||
+      e.shiftKey ||
+      !tap ||
+      performance.now() - tap.t > DOUBLE_CLICK_MS ||
+      Math.hypot(p.x - tap.x, p.y - tap.y) > 8 ||
+      !floor ||
+      !sheet
+    )
+      return false;
+    if (vEl) {
+      const z = st.zones[vEl.dataset.zone!];
+      if (!z) return false;
+      if (z.points.length <= 3) toast.error('A zone needs at least 3 corners');
+      else saveZone({ ...z, points: z.points.filter((_, i) => i !== Number(vEl.dataset.vertex)) });
+      return true;
+    }
+    const v = viewRef.current!;
+    const f = screenToFraction(v, sheet, p.x, p.y);
+    const toPx = ([x, y]: [number, number]): [number, number] => [x * floor.widthPx, y * floor.heightPx];
+    const reach = (e.pointerType === 'touch' ? 18 : 10) / v.scale;
+    const near = zones
+      .map((z) => ({ z, hit: nearestOnOutline(z.points.map(toPx), toPx([f.x, f.y])) }))
+      .filter(({ hit }) => hit.dist <= reach)
+      .sort((a, b) => a.hit.dist - b.hit.dist);
+    const found = near.find(({ z }) => z.id === st.selectedZone) ?? near[0];
+    if (!found) return false;
+    const { z, hit } = found;
+    if (z.points.length >= MAX_ZONE_POINTS) {
+      toast.error('This zone has as many corners as it can hold');
+      return true;
+    }
+    const at = hit.after + 1;
+    const round = (n: number) => Math.round(n * 1e5) / 1e5;
+    const point: [number, number] = [round(hit.x / floor.widthPx), round(hit.y / floor.heightPx)];
+    const zone = { ...z, points: [...z.points.slice(0, at), point, ...z.points.slice(at)] };
+    setState({ zones: { ...st.zones, [z.id]: zone }, selectedZone: z.id, selection: [] });
+    // the press carries on as a drag, so double-click-and-drag moves the new corner straight away
+    gesture.current = { kind: 'vertex', id: e.pointerId, zone, index: at, before: z };
+    return true;
+  };
 
   const finishDraft = (pts: [number, number][]) => {
     if (pts.length < 3 || !floor) return;
@@ -310,6 +422,7 @@ export function Plan() {
       gesture.current = { kind: 'pan', id: e.pointerId, lx: p.x, ly: p.y };
       return;
     }
+    if (doubleClickOutline(e, p, vEl)) return;
     const cEl = (e.target as HTMLElement).closest<HTMLElement>('[data-cov]');
     const st = getState();
     if (cEl && st.selection.length === 1 && st.markers[st.selection[0]] && st.canEdit) {
@@ -339,7 +452,12 @@ export function Plan() {
     if (!sheet) return;
     if (!pointers.current.has(e.pointerId)) {
       // hover: rubber band for the zone outline / calibration line
-      if ((tool === 'zone' && draft.length) || (tool === 'calibrate' && calibA)) setHover(local(e));
+      if (tool === 'zone' && canEdit && sheet) {
+        // show where the next corner would land, even before the first one
+        const h = local(e);
+        const s = snappedScreen(h.x, h.y, e.altKey);
+        if (draft.length) setHover(s);
+      } else if (tool === 'calibrate' && calibA) setHover(local(e));
       return;
     }
     const p = local(e);
@@ -368,7 +486,9 @@ export function Plan() {
         }
       }
       if (s.tool === 'zone' && s.canEdit && !g.markerId) {
-        gesture.current = { kind: 'zoneRect', id: g.id, sx: g.sx, sy: g.sy, x: p.x, y: p.y };
+        const from = snappedScreen(g.sx, g.sy, e.altKey);
+        const to = snappedScreen(p.x, p.y, e.altKey);
+        gesture.current = { kind: 'zoneRect', id: g.id, sx: from.x, sy: from.y, x: to.x, y: to.y };
         setDraft([]);
       } else if (g.markerId && s.canEdit) {
         let ids = s.selection.includes(g.markerId) ? s.selection : [g.markerId];
@@ -432,12 +552,22 @@ export function Plan() {
         cur.grab,
       );
     } else if (cur.kind === 'vertex') {
-      const f = screenToFraction(viewRef.current!, sheet, p.x, p.y);
+      const f = snapped(p.x, p.y, e.altKey, cur.zone.id);
       const pts = cur.zone.points.map((q, i) =>
         i === cur.index ? ([clamp(f.x, 0, 1), clamp(f.y, 0, 1)] as [number, number]) : q,
       );
       setState({ zones: { ...getState().zones, [cur.zone.id]: { ...cur.zone, points: pts } } });
-    } else if (cur.kind === 'marquee' || cur.kind === 'zoneRect') {
+    } else if (cur.kind === 'zoneRect') {
+      const to = snappedScreen(p.x, p.y, e.altKey);
+      cur.x = to.x;
+      cur.y = to.y;
+      setMarquee({
+        x: Math.min(cur.sx, to.x),
+        y: Math.min(cur.sy, to.y),
+        w: Math.abs(to.x - cur.sx),
+        h: Math.abs(to.y - cur.sy),
+      });
+    } else if (cur.kind === 'marquee') {
       cur.x = p.x;
       cur.y = p.y;
       setMarquee({
@@ -470,7 +600,8 @@ export function Plan() {
     const s = getState();
     if (e.type === 'pointercancel') {
       if (g.kind === 'drag') setPositionsLocal(new Map(g.before.map((m) => [m.id, { x: m.x, y: m.y }])));
-      if (g.kind === 'vertex') setState({ zones: { ...getState().zones, [g.zone.id]: g.zone } });
+      if (g.kind === 'vertex') setState({ zones: { ...getState().zones, [g.zone.id]: g.before ?? g.zone } });
+      setGuides([]);
       if (g.kind === 'coverage') setState({ markers: { ...getState().markers, [g.before.id]: g.before } });
       setMarquee(null);
       return;
@@ -485,7 +616,10 @@ export function Plan() {
           const near = (q: [number, number]) =>
             Math.hypot((q[0] - f.x) * sheet.width * v.scale, (q[1] - f.y) * sheet.height * v.scale) < 12;
           if (draft.length >= 3 && (near(draft[0]) || near(draft[draft.length - 1]))) finishDraft(draft);
-          else setDraft([...draft, [f.x, f.y]]);
+          else {
+            const c = snapped(g.sx, g.sy, e.altKey, null);
+            setDraft([...draft, [clamp(c.x, 0, 1), clamp(c.y, 0, 1)]]);
+          }
         } else if (s.tool === 'riser') {
           patchFloor(floor!.id, { riserX: Math.round(f.x * 1e5) / 1e5, riserY: Math.round(f.y * 1e5) / 1e5 });
           setState({ tool: null });
@@ -515,16 +649,22 @@ export function Plan() {
         return;
       }
       if (s.zoneEdit) {
-        // Zone Edit mode: select the zone under the click, if any
-        const z = inSheet(f) ? zoneAt(zones, floor!.id, f.x, f.y) : null;
-        setState({ selection: [], selectedZone: z?.id ?? null });
+        lastTap.current = { t: performance.now(), x: g.sx, y: g.sy };
+        // clicking a corner handle keeps its zone selected, even if the click is just outside it
+        if (!g.vertex) {
+          // Zone Edit mode: select the zone under the click, if any
+          const z = inSheet(f) ? zoneAt(zones, floor!.id, f.x, f.y) : null;
+          setState({ selection: [], selectedZone: z?.id ?? null });
+        }
       } else if (!g.shift) setState({ selection: [] });
     } else if (g.kind === 'coverage') {
       commitMarkerEdit(g.before, 'Coverage of');
     } else if (g.kind === 'vertex') {
+      setGuides([]);
       const z = getState().zones[g.zone.id];
       if (z) saveZone(z);
     } else if (g.kind === 'zoneRect') {
+      setGuides([]);
       setMarquee(null);
       const v = viewRef.current!;
       const a = screenToFraction(v, sheet, g.sx, g.sy);
@@ -599,6 +739,26 @@ export function Plan() {
             ))}
             <CoverageShapes floor={floor} />
             <WirePaths floor={floor} />
+            {guides.map((g, i) =>
+              g.kind === 'corner' ? (
+                <circle
+                  key={i}
+                  className="snap-guide corner"
+                  cx={g.at[0]}
+                  cy={g.at[1]}
+                  r={10 / (viewRef.current?.scale ?? 1)}
+                />
+              ) : (
+                <line
+                  key={i}
+                  className={`snap-guide ${g.kind}`}
+                  x1={g.seg[0][0]}
+                  y1={g.seg[0][1]}
+                  x2={g.seg[1][0]}
+                  y2={g.seg[1][1]}
+                />
+              ),
+            )}
             {draft.length > 0 && (
               <polyline
                 className="zone-draft"
@@ -667,7 +827,7 @@ export function Plan() {
                 className="vertex"
                 data-vertex={i}
                 data-zone={selectedZone}
-                title="Drag to reshape"
+                title="Drag to reshape, or double-click to remove this corner"
                 style={{ '--x': x * floor.widthPx, '--y': y * floor.heightPx } as React.CSSProperties}
               />
             ))}
@@ -716,7 +876,9 @@ export function Plan() {
           <div className="place-hint zone-edit-hint" role="status" onPointerDown={(e) => e.stopPropagation()}>
             <span>
               <strong>Zone Edit</strong> ·{' '}
-              {selectedZone ? 'Drag the corner handles to reshape' : 'Click a zone to edit it'}
+              {selectedZone
+                ? 'Drag corners to reshape. Double-click the outline to add a corner'
+                : 'Click a zone to edit it'}
             </span>
             <button
               className="btn btn-sm"

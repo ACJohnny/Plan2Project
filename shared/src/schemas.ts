@@ -66,6 +66,8 @@ export const Project = z.object({
   extraWireFt: z.number(),
   /** size of device markers on the plan and PDF; 1 = normal */
   markerScale: z.number(),
+  /** zone corners snap to lines detected on the drawing */
+  snapToLines: z.boolean(),
 });
 export type Project = z.infer<typeof Project>;
 
@@ -80,6 +82,7 @@ export const CreateProjectBody = ProjectFields;
 export const UpdateProjectBody = ProjectFields.partial().extend({
   extraWireFt: z.number().min(0).max(1000).optional(),
   markerScale: z.number().min(0.5).max(2).optional(),
+  snapToLines: z.boolean().optional(),
   archived: z.boolean().optional(),
   restore: z.boolean().optional(),
 });
@@ -201,11 +204,18 @@ export type WireType = z.infer<typeof WireType>;
 /** Admin-managed zone names offered as autocomplete when naming zones and rooms. */
 export const ZoneName = z.object({ id: Id, name: z.string(), sortOrder: z.number() });
 export type ZoneName = z.infer<typeof ZoneName>;
+/** How strongly zone corners snap: the pull distance in screen pixels; 0 turns that snap off. */
+const SnapPx = z.number().int().min(0).max(60);
+export const SnapSettings = z.object({ cornerPx: SnapPx, edgePx: SnapPx, linePx: SnapPx });
+export type SnapSettings = z.infer<typeof SnapSettings>;
+const SheetLineRow = z.tuple([z.number(), z.number(), z.number()]);
+export const SheetLinesDto = z.object({ h: z.array(SheetLineRow), v: z.array(SheetLineRow) });
 export const Library = z.object({
   categories: z.array(Category),
   types: z.array(DeviceType),
   wireTypes: z.array(WireType),
   zoneNames: z.array(ZoneName),
+  snap: SnapSettings,
 });
 export type Library = z.infer<typeof Library>;
 
