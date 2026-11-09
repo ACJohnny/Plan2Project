@@ -1701,6 +1701,17 @@ input[type='radio'] {
 .zone-label.selected {
   outline: 1.5px solid currentColor;
 }
+.zone-label.name-hidden {
+  opacity: 0.55;
+  background: transparent;
+  text-decoration: line-through;
+}
+.zone-show-name {
+  grid-column: 1 / -1;
+}
+.zones-table td.center {
+  text-align: center;
+}
 .eq-badge {
   padding: 0 4px;
   border-radius: 3px;

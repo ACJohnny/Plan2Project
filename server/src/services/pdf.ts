@@ -112,6 +112,7 @@ export interface PdfInput {
     name: string;
     kind: 'room' | 'closet';
     points: [number, number][];
+    showName?: boolean;
   }[];
   summary?: ProjectSummary;
   extraWireFt?: number;
@@ -251,6 +252,7 @@ export async function buildPdf(storage: Storage, input: PdfInput): Promise<Uint8
         borderWidth: closet ? 1.2 : 0.7,
         borderOpacity: 0.7,
       });
+      if (z.showName === false) continue;
       const [cx, cy] = centroid(z.points);
       const pt = markerPoint(rect, cx, cy);
       const label = closet ? `EQ · ${z.name}` : z.name;

@@ -42,6 +42,7 @@ export async function saveZone(z: Zone) {
       kind: z.kind,
       points: z.points,
       audioFormat: z.audioFormat,
+      showName: z.showName,
     });
     setState({ zones: { ...getState().zones, [z.id]: saved } });
     return saved;
@@ -65,6 +66,7 @@ export function newZone(floorId: string, points: [number, number][]): Zone {
     kind: 'room',
     points: points.map(([x, y]) => [round(x), round(y)]),
     audioFormat: null,
+    showName: true,
     updatedAt: new Date().toISOString(),
   };
 }

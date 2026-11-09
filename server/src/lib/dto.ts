@@ -91,6 +91,7 @@ export function zoneDto(z: typeof s.zones.$inferSelect): Zone {
     kind: z.kind,
     points: z.points,
     audioFormat: z.audioFormat,
+    showName: z.showName,
     updatedAt: z.updatedAt.toISOString(),
   };
 }

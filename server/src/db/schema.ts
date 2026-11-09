@@ -290,6 +290,7 @@ export const zones = pgTable(
       .default('room'),
     points: jsonb('points').$type<[number, number][]>().notNull(),
     audioFormat: text('audio_format', { enum: ['stereo', '5.0', '5.1', '7.1'] }),
+    showName: boolean('show_name').notNull().default(true),
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: created(),
     updatedAt: tstz('updated_at').notNull().defaultNow(),

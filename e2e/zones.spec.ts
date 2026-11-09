@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import { expect, test } from '@playwright/test';
 import { ADMIN, apiAs, login, projectWithSheets, RUN, sheetPoint } from './helpers';
 
@@ -23,7 +24,7 @@ test('zones, equipment closet, scale, run length, audio format and summary', asy
   let dlg = page.getByRole('dialog', { name: /^New (zone|equipment closet)$/ });
   // names from the admin list are offered as suggestions
   await expect(dlg.locator('datalist option[value="Living Room"]')).toHaveCount(1);
-  await dlg.getByLabel('Name').fill('Garage rack');
+  await dlg.getByLabel('Name', { exact: true }).fill('Garage rack');
   await dlg.getByLabel('Equipment closet').check();
   await dlg.getByRole('button', { name: 'Save zone' }).click();
   await expect(page.locator('.zone-label', { hasText: 'Garage rack' })).toBeVisible();
@@ -43,7 +44,7 @@ test('zones, equipment closet, scale, run length, audio format and summary', asy
     await page.mouse.click(p.x, p.y);
   }
   dlg = page.getByRole('dialog', { name: /^New (zone|equipment closet)$/ });
-  await dlg.getByLabel('Name').fill('Great Room');
+  await dlg.getByLabel('Name', { exact: true }).fill('Great Room');
   await dlg.getByRole('button', { name: 'Save zone' }).click();
   await expect(page.locator('.zone-label', { hasText: 'Great Room' })).toBeVisible();
   await page.keyboard.press('Escape'); // deselect zone
@@ -110,4 +111,32 @@ test('zones, equipment closet, scale, run length, audio format and summary', asy
     ['Family Room', 'room', 6, '5.1'],
     ['Garage rack', 'closet', 4, null],
   ]);
+
+  // 7) a zone's name can be hidden when the drawing already shows it
+  await sum.getByRole('button', { name: 'Close' }).click();
+  await page.getByRole('button', { name: 'Project menu' }).click();
+  await page.getByRole('menuitem', { name: 'Zones…' }).click();
+  await tbl.getByLabel('Show Family Room label on the plan and PDF').uncheck();
+  const label = page.locator('.zone-label', { hasText: 'Family Room' });
+  await expect(label).toHaveCount(0);
+  await expect(page.locator('.zone-label', { hasText: 'Garage rack' })).toBeVisible();
+  await tbl.getByRole('button', { name: 'Close' }).click();
+  const pdf = await api.get(`/api/projects/${proj.id}/export.pdf`);
+  expect(pdf.status()).toBe(200);
+  fs.writeFileSync(test.info().outputPath('hidden-name.pdf'), await pdf.body());
+  // still findable while editing zones, and the zone keeps working
+  await page.getByRole('button', { name: 'Edit zones' }).click();
+  await expect(label).toHaveClass(/name-hidden/);
+  await page.screenshot({ path: test.info().outputPath('hidden-name.png') });
+  await page.getByRole('button', { name: 'Project menu' }).click();
+  await page.getByRole('menuitem', { name: 'Zones…' }).click();
+  await tbl.getByRole('button', { name: 'Show', exact: true }).first().click(); // sorted: Family Room first
+  await page.screenshot({ path: test.info().outputPath('hidden-name-panel.png') });
+  await page.getByRole('checkbox', { name: 'Show name on the plan and PDF' }).check();
+  await expect(label).not.toHaveClass(/name-hidden/);
+  await expect
+    .poll(async () =>
+      (await (await api.get(`/api/projects/${proj.id}/zones`)).json()).every((z: any) => z.showName),
+    )
+    .toBe(true);
 });

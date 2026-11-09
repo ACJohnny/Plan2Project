@@ -51,6 +51,7 @@ export const zoneRoutes: FastifyPluginAsyncZod = async (app) => {
         kind: b.kind,
         points: b.points,
         audioFormat: b.audioFormat ?? null,
+        showName: b.showName ?? existing?.showName ?? true,
         updatedAt: new Date(),
       };
       const [row] = existing

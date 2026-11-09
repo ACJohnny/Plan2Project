@@ -205,6 +205,7 @@ function ZonesTable({ onClose }: { onClose: () => void }) {
               <tr>
                 <th>Floor</th>
                 <th>Name</th>
+                <th>Show name</th>
                 <th>Kind</th>
                 <th>Audio</th>
                 <th className="num">Devices</th>
@@ -218,6 +219,15 @@ function ZonesTable({ onClose }: { onClose: () => void }) {
                   <td className="nowrap">{floorName(z.floorId)}</td>
                   <td>
                     <NameCell key={z.updatedAt} zone={z} disabled={!canEdit} />
+                  </td>
+                  <td className="center">
+                    <input
+                      type="checkbox"
+                      aria-label={`Show ${z.name} label on the plan and PDF`}
+                      checked={z.showName}
+                      disabled={!canEdit}
+                      onChange={(e) => saveZone({ ...z, showName: e.target.checked })}
+                    />
                   </td>
                   <td>
                     <select

@@ -1,0 +1,1 @@
+ALTER TABLE "zones" ADD COLUMN "show_name" boolean DEFAULT true NOT NULL;

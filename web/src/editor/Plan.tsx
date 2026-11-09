@@ -621,11 +621,13 @@ export function Plan() {
         {!loaded && <div className="plan-loading">Loading sheet…</div>}
         <div className="marker-layer" ref={layerRef} style={{ '--ms': markerScale } as React.CSSProperties}>
           {zones.map((z) => {
+            // a hidden name still shows, dimmed, while editing zones so the zone can be identified
+            if (!z.showName && !zoneEdit) return null;
             const [cx, cy] = centroid(z.points);
             return (
               <div
                 key={z.id}
-                className={`zone-label ${z.kind === 'closet' ? 'closet' : ''} ${z.id === selectedZone ? 'selected' : ''}`}
+                className={`zone-label ${z.kind === 'closet' ? 'closet' : ''} ${z.id === selectedZone ? 'selected' : ''} ${z.showName ? '' : 'name-hidden'}`}
                 style={{ '--x': cx * floor.widthPx, '--y': cy * floor.heightPx } as React.CSSProperties}
               >
                 {z.kind === 'closet' && <span className="eq-badge">EQ</span>}

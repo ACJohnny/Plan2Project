@@ -252,4 +252,24 @@ describe('zones, scale and runs', () => {
     expect((await admin.get(`/api/projects/${d.json.id}/zones`)).json).toHaveLength(2);
     expect(d.json.extraWireFt).toBe(10);
   });
+
+  it('can hide a zone name, which stays hidden through other edits and project copies', async () => {
+    const id = randomUUID();
+    const body = {
+      projectId,
+      floorId: floors[0].id,
+      name: 'Printed on plan',
+      kind: 'room',
+      points: rect(0.7, 0.7, 0.8, 0.8),
+    };
+    expect((await admin.put(`/api/zones/${id}`, body)).json.showName).toBe(true);
+    expect((await admin.put(`/api/zones/${id}`, { ...body, showName: false })).json.showName).toBe(false);
+    // a client that doesn't send the field leaves it alone
+    const renamed = (await admin.put(`/api/zones/${id}`, { ...body, name: 'Renamed' })).json;
+    expect(renamed).toMatchObject({ name: 'Renamed', showName: false });
+    const d = await admin.post(`/api/projects/${projectId}/duplicate`, { name: 'Copy', withMarkers: false });
+    const copied = (await admin.get(`/api/projects/${d.json.id}/zones`)).json;
+    expect(copied.find((z: any) => z.name === 'Renamed').showName).toBe(false);
+    expect((await admin.get(`/api/projects/${projectId}/export.pdf`)).status).toBe(200);
+  });
 });

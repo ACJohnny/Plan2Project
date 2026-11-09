@@ -27,13 +27,17 @@ function audioDevicesIn(z: Zone): number {
   ).length;
 }
 
+const SHOW_NAME = 'Show name on the plan and PDF';
+
 function ZoneFields({
   f,
   set,
   showAudio,
 }: {
-  f: { name: string; kind: 'room' | 'closet'; audioFormat: AudioFormat | null };
-  set: (p: Partial<{ name: string; kind: 'room' | 'closet'; audioFormat: AudioFormat | null }>) => void;
+  f: { name: string; kind: 'room' | 'closet'; audioFormat: AudioFormat | null; showName: boolean };
+  set: (
+    p: Partial<{ name: string; kind: 'room' | 'closet'; audioFormat: AudioFormat | null; showName: boolean }>,
+  ) => void;
   showAudio: boolean;
 }) {
   return (
@@ -47,6 +51,10 @@ function ZoneFields({
           onChange={(e) => set({ name: e.target.value })}
           placeholder="e.g. Living Room"
         />
+      </label>
+      <label className="check-row span-2">
+        <input type="checkbox" checked={f.showName} onChange={(e) => set({ showName: e.target.checked })} />{' '}
+        {SHOW_NAME}
       </label>
       <fieldset className="span-2 radios radios-row">
         <legend>Kind</legend>
@@ -81,7 +89,12 @@ function ZoneFields({
 /** Name a newly drawn zone. */
 export function ZoneDialog({ zone, onClose }: { zone: Zone; isNew?: boolean; onClose: () => void }) {
   const audio = useMemo(() => audioDevicesIn(zone), [zone]);
-  const [f, setF] = useState({ name: zone.name, kind: zone.kind, audioFormat: zone.audioFormat });
+  const [f, setF] = useState({
+    name: zone.name,
+    kind: zone.kind,
+    audioFormat: zone.audioFormat,
+    showName: zone.showName,
+  });
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     const saved = await saveZone({ ...zone, ...f, name: f.name.trim() });
@@ -159,6 +172,15 @@ export function ZoneEditor({ zone }: { zone: Zone }) {
           onBlur={() => renameZone(zone, name)}
           onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
         />
+        <label className="check-row zone-show-name">
+          <input
+            type="checkbox"
+            checked={zone.showName}
+            disabled={!canEdit}
+            onChange={(e) => update({ showName: e.target.checked })}
+          />{' '}
+          {SHOW_NAME}
+        </label>
         <label className="field" htmlFor="zone-kind">
           <span>Kind</span>
         </label>

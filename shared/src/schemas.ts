@@ -269,6 +269,8 @@ export const Zone = z.object({
   kind: ZoneKind,
   points: z.array(Point),
   audioFormat: AudioFormatSchema.nullable(),
+  /** false = don't print the name on the plan or PDF (e.g. the drawing already shows it) */
+  showName: z.boolean(),
   updatedAt: ts,
 });
 export type Zone = z.infer<typeof Zone>;
@@ -280,6 +282,7 @@ export const PutZoneBody = z.object({
   kind: ZoneKind,
   points: z.array(Point).min(3).max(200),
   audioFormat: AudioFormatSchema.nullable().default(null),
+  showName: z.boolean().optional(),
 });
 
 export const MarkerFields = z.object({

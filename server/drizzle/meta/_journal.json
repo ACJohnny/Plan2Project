@@ -50,6 +50,13 @@
       "when": 1794202830774,
       "tag": "0006_marker_scale",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794203424680,
+      "tag": "0007_zone_show_name",
+      "breakpoints": true
     }
   ]
 }
