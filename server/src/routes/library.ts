@@ -23,7 +23,8 @@ import {
 import type { DB } from '../db';
 import { deviceCategories, deviceTypes, deviceTypeWires, wireTypes, zoneNames } from '../db/schema';
 import { HttpError, requireRole, requireUser } from '../lib/auth';
-import { fileUrl, ICON_MAX_MB } from '../lib/storage';
+import { DEFAULT_ICONS } from '../lib/defaultIcons';
+import { fileUrl, ICON_MAX_MB, type Storage } from '../lib/storage';
 
 const P = z.object({ id: Id });
 
@@ -51,6 +52,22 @@ export async function seedLibrary(db: DB) {
 }
 
 /** Seed wire types and default wiring once (also for installs created before wiring existed). */
+/**
+ * Give seeded device types their default icon, once per type: an icon an admin replaced is kept,
+ * and one an admin removed stays removed across restarts.
+ */
+export async function seedDefaultIcons(db: DB, storage: Storage) {
+  const types = await db.select().from(deviceTypes).where(eq(deviceTypes.iconSeeded, false));
+  let added = 0;
+  for (const t of types) {
+    const def = t.iconPath ? null : DEFAULT_ICONS[t.code];
+    const iconPath = def ? await storage.storeIcon(def) : t.iconPath;
+    if (def) added++;
+    await db.update(deviceTypes).set({ iconPath, iconSeeded: true }).where(eq(deviceTypes.id, t.id));
+  }
+  return added;
+}
+
 export async function seedWires(db: DB) {
   const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(wireTypes);
   if (n > 0) return false;
@@ -230,7 +247,7 @@ export const libraryRoutes: FastifyPluginAsyncZod = async (app) => {
         .where(eq(deviceTypes.categoryId, req.body.categoryId));
       const [t] = await db
         .insert(deviceTypes)
-        .values({ ...req.body, sortOrder: n })
+        .values({ ...req.body, sortOrder: n, iconSeeded: true })
         .returning();
       changed(req);
       return (await loadLibrary(db)).types.find((x) => x.id === t.id)!;
@@ -297,7 +314,7 @@ export const libraryRoutes: FastifyPluginAsyncZod = async (app) => {
       const iconPath = await app.ctx.storage.storeIcon(buf);
       const [t] = await db
         .update(deviceTypes)
-        .set({ iconPath })
+        .set({ iconPath, iconSeeded: true })
         .where(eq(deviceTypes.id, req.params.id))
         .returning();
       if (!t) throw new HttpError(404, 'Device type not found');
@@ -312,7 +329,7 @@ export const libraryRoutes: FastifyPluginAsyncZod = async (app) => {
     async (req) => {
       const [t] = await db
         .update(deviceTypes)
-        .set({ iconPath: null })
+        .set({ iconPath: null, iconSeeded: true })
         .where(eq(deviceTypes.id, req.params.id))
         .returning();
       if (!t) throw new HttpError(404, 'Device type not found');

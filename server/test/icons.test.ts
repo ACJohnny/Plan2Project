@@ -4,6 +4,7 @@ import path from 'node:path';
 import { PDFDocument } from 'pdf-lib';
 import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { seedDefaultIcons } from '../src/routes/library';
 import { login, SAMPLES, setupApp } from './helpers';
 
 let env: Awaited<ReturnType<typeof setupApp>>;
@@ -113,5 +114,40 @@ describe('device icons', () => {
     const pdf = await admin.get(`/api/projects/${projectId}/export.pdf`);
     expect(pdf.status).toBe(200);
     expect(pdf.raw.length).toBeLessThan(before.length);
+  });
+
+  it('seeds default icons once, keeping replaced and removed ones', async () => {
+    const types = async () => (await admin.get('/api/device-library')).json.types as any[];
+    const of = async (code: string) => (await types()).find((t) => t.code === code);
+    // an admin replaced CAM's icon before seeding; TV's was removed by the test above
+    const camId = (await of('CAM')).id;
+    const mine = (await admin.upload(`/api/device-library/types/${camId}/icon`, file('h.svg', TINY_SVG))).json
+      .iconUrl;
+    const custom = (
+      await admin.post('/api/device-library/types', {
+        categoryId: (await of('CAM')).categoryId,
+        code: 'CUSTOM',
+        name: 'Custom',
+      })
+    ).json;
+
+    const added = await seedDefaultIcons(env.db, env.app.ctx.storage);
+    expect(added).toBe((await types()).filter((t) => t.iconUrl).length - 1); // all but CAM's own
+    expect((await of('CAM')).iconUrl).toBe(mine);
+    expect((await of('TV')).iconUrl).toBeNull();
+    expect((await of('CUSTOM')).iconUrl).toBeNull();
+    expect(custom.iconUrl).toBeNull();
+
+    // every other seeded type has one, each a distinct picture that renders
+    const seeded = (await types()).filter((t) => !['CAM', 'TV', 'CUSTOM'].includes(t.code));
+    expect(seeded.every((t) => t.iconUrl)).toBe(true);
+    expect(new Set(seeded.map((t) => t.iconUrl)).size).toBe(seeded.length);
+    const img = await admin.get((await of('WAP')).iconUrl);
+    expect(await sharp(img.raw).metadata()).toMatchObject({ format: 'png', width: 256 });
+
+    // removing one sticks across a restart
+    await admin.del(`/api/device-library/types/${(await of('WAP')).id}/icon`);
+    expect(await seedDefaultIcons(env.db, env.app.ctx.storage)).toBe(0);
+    expect((await of('WAP')).iconUrl).toBeNull();
   });
 });

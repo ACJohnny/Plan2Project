@@ -185,6 +185,8 @@ export const deviceTypes = pgTable(
     coverage: jsonb('coverage').$type<TypeCoverage>(),
     iconPath: text('icon_path'),
     iconLabel: boolean('icon_label').notNull().default(true),
+    /** default icon already offered, so removing it sticks */
+    iconSeeded: boolean('icon_seeded').notNull().default(false),
   },
   (t) => [uniqueIndex('device_types_code_uq').on(t.code)],
 );

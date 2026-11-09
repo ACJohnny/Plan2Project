@@ -107,6 +107,8 @@ The code and number (`CAM1`) print below the icon by default. The type sets that
 
 Uploads are converted to a 256 px transparent PNG under `/data/icons`; the original file isn't kept.
 
+The seeded device types start with a default icon from [Material Design Icons](https://pictogrammers.com/library/mdi/) ([licence](docs/third-party/material-design-icons-LICENSE.txt)). They're added once per type at startup, so an icon an admin replaces or removes stays that way.
+
 ## Wire paths and coverage areas
 
 - **Wire paths:** tick **Wire paths** in the toolbar to draw each device's right-angle run to its equipment closet: device → riser on other floors, and a dark trunk from the riser to the closet. The selected device's path is solid; the rest are dashed. The setting is remembered per browser.
@@ -152,6 +154,6 @@ On a host without Node, `scripts/dev-shell.sh "<command>"` runs any command in a
 | API integration | `pnpm test` with `TEST_DATABASE_URL` set (a throwaway Postgres; each file creates its own database) | auth, roles, CSRF, lockout, uploads and PDF conversion, numbering under concurrency, undo/restore, renumber, exports, library, tokens |
 | End-to-end (Playwright) | `pnpm test:e2e` against a running stack (`E2E_BASE_URL`, `E2E_ADMIN_EMAIL`, `E2E_ADMIN_PASSWORD`), or `scripts/e2e.sh` in Docker | the v1 acceptance list at 1440 px desktop and on an iPhone 13 profile |
 
-Without Node: `TEST_DB=1 scripts/dev-shell.sh "pnpm test"` and `scripts/e2e.sh`.
+Without Node: `TEST_DB=1 scripts/dev-shell.sh "pnpm test"` and `scripts/e2e.sh`. `scripts/e2e.sh` starts its own throwaway stack (fresh database, no published port) and removes it afterwards, so it leaves the running app's data alone.
 
 CI (`.github/workflows/ci.yml`) runs lint, typecheck, unit and integration tests, then the e2e suite against `docker compose up`, then builds the image.

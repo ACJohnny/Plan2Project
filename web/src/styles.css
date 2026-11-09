@@ -1138,9 +1138,9 @@ input[type='radio'] {
 }
 /* an icon centred on the device's point, with its code + number hanging below */
 .marker.has-icon {
-  width: 34px;
+  width: 30px;
   min-width: 0;
-  height: 34px;
+  height: 30px;
   padding: 2px;
   box-sizing: border-box;
   display: block;
@@ -1174,6 +1174,9 @@ input[type='radio'] {
   object-fit: contain;
   vertical-align: middle;
   margin-right: 4px;
+}
+.lib-types .type-icon {
+  margin-left: 6px;
 }
 .type-icon.lg {
   width: 32px;

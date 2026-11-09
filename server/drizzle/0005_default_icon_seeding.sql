@@ -1,0 +1,1 @@
+ALTER TABLE "device_types" ADD COLUMN "icon_seeded" boolean DEFAULT false NOT NULL;

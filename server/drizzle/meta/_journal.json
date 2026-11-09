@@ -36,6 +36,13 @@
       "when": 1794201411012,
       "tag": "0004_device_icons",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794202026115,
+      "tag": "0005_default_icon_seeding",
+      "breakpoints": true
     }
   ]
 }

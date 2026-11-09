@@ -60,8 +60,8 @@ test('zones, equipment closet, scale, run length, audio format and summary', asy
   const s = await sheetPoint(page, 0.45, 0.7);
   await page.mouse.click(s.x, s.y);
   await expect(page.getByLabel('Room')).toHaveValue('Great Room');
-  await expect(page.locator('.cabling')).toContainText('Garage rack');
-  await expect(page.locator('.cabling')).toContainText('1× 16/2 speaker');
+  await expect(page.locator('.cabling').first()).toContainText('Garage rack');
+  await expect(page.locator('.cabling').first()).toContainText('1× 16/2 speaker');
   // (0.45,0.7) → closet centroid (0.15,0.175): 0.30×144 + 0.525×96 = 93.6 ft + 10 extra ≈ 104 ft
   await expect(page.locator('.run-len')).toHaveText(/≈ 10[34] ft/);
   await page.keyboard.press('Escape');

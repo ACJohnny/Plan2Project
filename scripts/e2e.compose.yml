@@ -1,0 +1,7 @@
+# Throwaway stack for scripts/e2e.sh: no published port, nothing restarts on its own.
+services:
+  app:
+    restart: 'no'
+    ports: !reset []
+  db:
+    restart: 'no'
