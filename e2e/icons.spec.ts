@@ -79,3 +79,49 @@ test('an icon added in the admin panel replaces the tag, with a per-device label
     fs.writeFileSync(test.info().outputPath('icons.pdf'), await pdf.body());
   }
 });
+
+test('marker size is a project setting, for tags, icons and the PDF', async ({ page }) => {
+  const api = await apiAs(ADMIN.email, ADMIN.password);
+  const proj = await projectWithSheets(api, `Size ${RUN}`);
+  const floor = [...proj.floors].sort((a, b) => a.sortOrder - b.sortOrder)[0];
+  const lib = await (await api.get('/api/device-library')).json();
+  const typeId = (code: string) => lib.types.find((t: any) => t.code === code).id;
+  // CAM keeps its default icon; removing SPK's gives a plain tag to measure
+  await api.delete(`/api/device-library/types/${typeId('SPK')}/icon`);
+  const [cam, spk] = [crypto.randomUUID(), crypto.randomUUID()];
+  for (const [id, code, x] of [
+    [cam, 'CAM', 0.4],
+    [spk, 'SPK', 0.6],
+  ] as const)
+    await api.put(`/api/markers/${id}`, {
+      data: { projectId: proj.id, floorId: floor.id, typeId: typeId(code), x, y: 0.5 },
+    });
+  await login(page, ADMIN.email, ADMIN.password);
+  await page.goto(`/p/${proj.id}`);
+  const size = async (id: string) => (await page.locator(`[data-marker="${id}"]`).boundingBox())!;
+  await expect(page.locator(`[data-marker="${cam}"] img`)).toBeVisible();
+  expect((await size(cam)).height).toBeCloseTo(30, 0);
+  expect((await size(spk)).height).toBeCloseTo(22, 0);
+  const before = await size(cam);
+
+  await page.getByRole('button', { name: 'Project menu' }).click();
+  await page.getByRole('menuitem', { name: 'Project settings…' }).click();
+  await page.getByLabel('Marker size').selectOption({ label: 'Extra large (150%)' });
+  await page.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+
+  await expect.poll(async () => Math.round((await size(cam)).height)).toBe(45);
+  expect((await size(spk)).height).toBeCloseTo(33, 0);
+  // it grows around the device's point
+  const after = await size(cam);
+  expect(after.x + after.width / 2).toBeCloseTo(before.x + before.width / 2, 0);
+  expect(after.y + after.height / 2).toBeCloseTo(before.y + before.height / 2, 0);
+
+  // the setting is saved, and the plain tag and icon both print larger
+  await page.reload();
+  await expect(page.locator(`[data-marker="${cam}"] img`)).toBeVisible();
+  expect((await size(cam)).height).toBeCloseTo(45, 0);
+  const pdf = await api.get(`/api/projects/${proj.id}/export.pdf`);
+  expect(pdf.status()).toBe(200);
+  fs.writeFileSync(test.info().outputPath('size.pdf'), await pdf.body());
+});

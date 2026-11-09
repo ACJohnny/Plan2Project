@@ -40,7 +40,7 @@ export async function listProjects(db: Q, opts: ListOpts = {}): Promise<Project[
     );
   }
   const res = await db.execute(sql`
-    select p.id, p.name, p.client, p.address, p.job_number, p.notes, p.extra_wire_ft, p.archived_at, p.deleted_at, p.created_by,
+    select p.id, p.name, p.client, p.address, p.job_number, p.notes, p.extra_wire_ft, p.marker_scale, p.archived_at, p.deleted_at, p.created_by,
            p.updated_at, u.name as updated_by_name,
            (select count(*)::int from floors f where f.project_id = p.id and f.deleted_at is null) as floor_count,
            (select count(*)::int from markers m join floors f on f.id = m.floor_id
@@ -67,6 +67,7 @@ export async function listProjects(db: Q, opts: ListOpts = {}): Promise<Project[
     deviceCount: r.device_count,
     thumbUrl: r.thumb_path ? fileUrl(r.thumb_path) : null,
     extraWireFt: Number(r.extra_wire_ft ?? 0),
+    markerScale: Number(r.marker_scale ?? 1),
   }));
 }
 

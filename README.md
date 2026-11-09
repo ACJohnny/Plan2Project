@@ -109,6 +109,8 @@ Uploads are converted to a 256 px transparent PNG under `/data/icons`; the origi
 
 The seeded device types start with a default icon from [Material Design Icons](https://pictogrammers.com/library/mdi/) ([licence](docs/third-party/material-design-icons-LICENSE.txt)). They're added once per type at startup, so an icon an admin replaces or removes stays that way.
 
+Marker size is set per project (Project settings → Marker size, 60–200%). It applies to tags and icons on the plan and in the PDF, and is copied when a project is duplicated.
+
 ## Wire paths and coverage areas
 
 - **Wire paths:** tick **Wire paths** in the toolbar to draw each device's right-angle run to its equipment closet: device → riser on other floors, and a dark trunk from the riser to the closet. The selected device's path is solid; the rest are dashed. The setting is remembered per browser.

@@ -124,6 +124,7 @@ export const exportRoutes: FastifyPluginAsyncZod = async (app) => {
         hiddenLabels: hiddenLabels(d),
         summary: d.summary,
         extraWireFt: d.project.extraWireFt,
+        markerScale: d.project.markerScale,
         logoPath: fs.existsSync(logo) ? logo : null,
       });
       reply.header('Content-Type', 'application/pdf');

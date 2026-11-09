@@ -1,0 +1,1 @@
+ALTER TABLE "projects" ADD COLUMN "marker_scale" double precision DEFAULT 1 NOT NULL;

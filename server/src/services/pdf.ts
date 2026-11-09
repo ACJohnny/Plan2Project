@@ -115,6 +115,8 @@ export interface PdfInput {
   }[];
   summary?: ProjectSummary;
   extraWireFt?: number;
+  /** size of device markers; 1 = normal */
+  markerScale?: number;
   logoPath: string | null;
   date?: Date;
 }
@@ -300,17 +302,18 @@ export async function buildPdf(storage: Storage, input: PdfInput): Promise<Uint8
     }
 
     // markers: white tag on category color, constant size
+    const k = input.markerScale ?? 1;
     for (const m of sortForSchedule(ms, input.types)) {
       const t = input.types.get(m.typeId);
       const tag = `${t?.code ?? '?'}${m.number}`;
-      const size = 6.5;
+      const size = 6.5 * k;
       const tw = w(tag, F.monoBold, size);
-      const bw = tw + 6;
-      const bh = 10;
+      const bw = tw + 6 * k;
+      const bh = 10 * k;
       const pt = markerPoint(rect, m.x, m.y);
       const icon = icons.get(m.typeId);
       if (icon) {
-        const box = 16;
+        const box = 16 * k;
         const color = hex(t?.color ?? '#6b7280');
         page.drawRectangle({
           x: pt.x - box / 2,
@@ -321,26 +324,27 @@ export async function buildPdf(storage: Storage, input: PdfInput): Promise<Uint8
           borderColor: color,
           borderWidth: 0.8,
         });
+        const inset = 1 * k;
         page.drawImage(icon, {
-          x: pt.x - box / 2 + 1,
-          y: pt.y - box / 2 + 1,
-          width: box - 2,
-          height: box - 2,
+          x: pt.x - box / 2 + inset,
+          y: pt.y - box / 2 + inset,
+          width: box - 2 * inset,
+          height: box - 2 * inset,
         });
         if (!input.hiddenLabels?.has(m.id)) {
-          const ls = 5.5;
+          const ls = 5.5 * k;
           const lw = w(tag, F.monoBold, ls);
-          const top = pt.y - box / 2 - 1;
+          const top = pt.y - box / 2 - k;
           page.drawRectangle({
-            x: pt.x - lw / 2 - 2,
-            y: top - 8,
-            width: lw + 4,
-            height: 8,
+            x: pt.x - lw / 2 - 2 * k,
+            y: top - 8 * k,
+            width: lw + 4 * k,
+            height: 8 * k,
             color,
             borderColor: WHITE,
             borderWidth: 0.4,
           });
-          text(page, tag, pt.x - lw / 2, top - 6, ls, F.monoBold, WHITE);
+          text(page, tag, pt.x - lw / 2, top - 6 * k, ls, F.monoBold, WHITE);
         }
         continue;
       }

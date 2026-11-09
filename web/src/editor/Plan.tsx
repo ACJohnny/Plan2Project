@@ -72,6 +72,7 @@ export function Plan() {
   const boxMode = useEditor((s) => s.boxMode);
   const focus = useEditor((s) => s.focus);
   const types = useEditor((s) => s.types);
+  const markerScale = useEditor((s) => s.project?.markerScale ?? 1);
   const zonesAll = useEditor((s) => s.zones);
   const tool = useEditor((s) => s.tool);
   const selectedZone = useEditor((s) => s.selectedZone);
@@ -618,7 +619,7 @@ export function Plan() {
           </svg>
         </div>
         {!loaded && <div className="plan-loading">Loading sheet…</div>}
-        <div className="marker-layer" ref={layerRef}>
+        <div className="marker-layer" ref={layerRef} style={{ '--ms': markerScale } as React.CSSProperties}>
           {zones.map((z) => {
             const [cx, cy] = centroid(z.points);
             return (

@@ -43,6 +43,13 @@
       "when": 1794202026115,
       "tag": "0005_default_icon_seeding",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794202830774,
+      "tag": "0006_marker_scale",
+      "breakpoints": true
     }
   ]
 }

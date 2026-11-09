@@ -150,4 +150,18 @@ describe('device icons', () => {
     expect(await seedDefaultIcons(env.db, env.app.ctx.storage)).toBe(0);
     expect((await of('WAP')).iconUrl).toBeNull();
   });
+
+  it('keeps a per-project marker size, within limits, and copies it when duplicating', async () => {
+    const p = (await admin.post('/api/projects', { name: 'Sizes' })).json;
+    expect(p.markerScale).toBe(1);
+    const url = `/api/projects/${p.id}`;
+    expect((await admin.patch(url, { markerScale: 1.5 })).json.markerScale).toBe(1.5);
+    expect((await admin.get(url)).json.project.markerScale).toBe(1.5);
+    expect((await admin.patch(url, { markerScale: 5 })).status).toBe(400);
+    expect((await admin.patch(url, { markerScale: 0.1 })).status).toBe(400);
+    const other = (await admin.post('/api/projects', { name: 'Other' })).json;
+    expect(other.markerScale).toBe(1);
+    const dup = await admin.post(`${url}/duplicate`, { name: 'Sizes copy', withMarkers: false });
+    expect(dup.json.markerScale).toBe(1.5);
+  });
 });

@@ -1120,15 +1120,15 @@ input[type='radio'] {
       calc(var(--ty) * 1px + var(--y) * var(--s) * 1px)
     )
     translate(-50%, -50%);
-  min-width: 34px;
-  height: 22px;
-  padding: 0 5px;
+  min-width: calc(34px * var(--ms, 1));
+  height: calc(22px * var(--ms, 1));
+  padding: 0 calc(5px * var(--ms, 1));
   display: grid;
   place-items: center;
   border-radius: 4px;
   border: 1.5px solid #fff;
   color: #fff;
-  font: 600 11px/1 var(--font-mono);
+  font: 600 calc(11px * var(--ms, 1)) / 1 var(--font-mono);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.35);
@@ -1138,10 +1138,10 @@ input[type='radio'] {
 }
 /* an icon centred on the device's point, with its code + number hanging below */
 .marker.has-icon {
-  width: 30px;
+  width: calc(30px * var(--ms, 1));
   min-width: 0;
-  height: 30px;
-  padding: 2px;
+  height: calc(30px * var(--ms, 1));
+  padding: calc(2px * var(--ms, 1));
   box-sizing: border-box;
   display: block;
   border: 2px solid var(--c);
@@ -1160,11 +1160,11 @@ input[type='radio'] {
   top: calc(100% + 3px);
   left: 50%;
   transform: translateX(-50%);
-  padding: 2px 4px;
+  padding: calc(2px * var(--ms, 1)) calc(4px * var(--ms, 1));
   border: 1px solid #fff;
   border-radius: 3px;
   color: #fff;
-  font: 600 10px/1 var(--font-mono);
+  font: 600 calc(10px * var(--ms, 1)) / 1 var(--font-mono);
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.3);
 }
 .type-icon {

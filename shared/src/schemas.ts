@@ -64,6 +64,8 @@ export const Project = z.object({
   thumbUrl: z.string().nullable(),
   /** extra wire added to every cable run, feet */
   extraWireFt: z.number(),
+  /** size of device markers on the plan and PDF; 1 = normal */
+  markerScale: z.number(),
 });
 export type Project = z.infer<typeof Project>;
 
@@ -77,6 +79,7 @@ export const ProjectFields = z.object({
 export const CreateProjectBody = ProjectFields;
 export const UpdateProjectBody = ProjectFields.partial().extend({
   extraWireFt: z.number().min(0).max(1000).optional(),
+  markerScale: z.number().min(0.5).max(2).optional(),
   archived: z.boolean().optional(),
   restore: z.boolean().optional(),
 });

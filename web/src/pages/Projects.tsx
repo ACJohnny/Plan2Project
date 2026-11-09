@@ -199,6 +199,15 @@ export function ProjectsPage() {
 }
 
 /** R-16: project fields; used for create and for the settings panel. */
+const MARKER_SIZES = [
+  [0.6, 'Extra small (60%)'],
+  [0.8, 'Small (80%)'],
+  [1, 'Normal (100%)'],
+  [1.25, 'Large (125%)'],
+  [1.5, 'Extra large (150%)'],
+  [2, 'Huge (200%)'],
+] as const;
+
 export function ProjectDialog({
   project,
   onClose,
@@ -215,6 +224,7 @@ export function ProjectDialog({
     jobNumber: project?.jobNumber ?? '',
     notes: project?.notes ?? '',
     extraWireFt: String(project?.extraWireFt ?? 0),
+    markerScale: String(project?.markerScale ?? 1),
   });
   const [busy, setBusy] = useState(false);
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) =>
@@ -223,12 +233,18 @@ export function ProjectDialog({
     e.preventDefault();
     setBusy(true);
     try {
-      const { extraWireFt, ...fields } = f;
+      const { extraWireFt, markerScale: scale, ...fields } = f;
       const extra = Math.max(0, Number(extraWireFt) || 0);
+      const markerScale = Number(scale) || 1;
       const p = project
-        ? await api.patch<Project>(`/api/projects/${project.id}`, { ...fields, extraWireFt: extra })
+        ? await api.patch<Project>(`/api/projects/${project.id}`, {
+            ...fields,
+            extraWireFt: extra,
+            markerScale,
+          })
         : await api.patch<Project>(`/api/projects/${(await api.post<Project>('/api/projects', fields)).id}`, {
             extraWireFt: extra,
+            markerScale,
           });
       onSaved(p);
       onClose();
@@ -275,6 +291,20 @@ export function ProjectDialog({
         <p className="muted small field-note">
           Added to every cable run for service loops, drops and termination.
         </p>
+        <label className="field">
+          <span>Marker size</span>
+          <select value={f.markerScale} onChange={set('markerScale')}>
+            {MARKER_SIZES.map(([v, label]) => (
+              <option key={v} value={v}>
+                {label}
+              </option>
+            ))}
+            {!MARKER_SIZES.some(([v]) => v === Number(f.markerScale)) && (
+              <option value={f.markerScale}>{Math.round(Number(f.markerScale) * 100)}%</option>
+            )}
+          </select>
+        </label>
+        <p className="muted small field-note">How large devices appear on this project's plans and PDF.</p>
         <div className="form-actions span-2">
           <button type="button" className="btn" onClick={onClose}>
             Cancel

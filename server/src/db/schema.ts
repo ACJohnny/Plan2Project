@@ -75,6 +75,7 @@ export const projects = pgTable(
     updatedAt: tstz('updated_at').notNull().defaultNow(),
     /** extra wire added to every cable run, feet */
     extraWireFt: doublePrecision('extra_wire_ft').notNull().default(0),
+    markerScale: doublePrecision('marker_scale').notNull().default(1),
     /** Phase 2: tokenized read-only share link */
     shareToken: text('share_token').unique(),
   },
