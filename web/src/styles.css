@@ -1664,6 +1664,19 @@ input[type='radio'] {
   stroke-width: calc(var(--px, 1) * 2px);
   stroke-dasharray: calc(var(--px, 1) * 6px) calc(var(--px, 1) * 4px);
 }
+.room-draft {
+  stroke: var(--accent);
+  stroke-width: calc(var(--px, 1) * 2px);
+  stroke-dasharray: calc(var(--px, 1) * 6px) calc(var(--px, 1) * 4px);
+}
+.room-draft.on {
+  fill: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.room-draft.off {
+  fill: transparent;
+  stroke: var(--muted);
+  stroke-opacity: 0.6;
+}
 .calib-line {
   stroke: var(--accent);
   stroke-width: calc(var(--px, 1) * 2px);
@@ -1984,6 +1997,32 @@ input[type='radio'] {
 .zone-list-btn:hover,
 .zone-list-btn:focus-visible {
   background: var(--surface-2);
+}
+.room-draft-label.off {
+  opacity: 0.55;
+  text-decoration: line-through;
+}
+.room-review {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.room-review li {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+}
+.room-review li input[type='text'],
+.room-review li input:not([type]) {
+  min-width: 0;
+}
+.room-review li.off input:not([type='checkbox']) {
+  color: var(--muted);
 }
 .zone-swatch.sm {
   width: 16px;

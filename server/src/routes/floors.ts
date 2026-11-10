@@ -5,6 +5,7 @@ import { and, asc, desc, eq, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   aspectDiff,
+  DetectRoomsResult,
   Floor,
   Id,
   SheetLinesDto,
@@ -21,6 +22,7 @@ import { fileUrl } from '../lib/storage';
 import { nameFromFilename, receiveFile } from '../lib/upload';
 import { createFloor, pageTitle, renderPdfPage } from '../services/jobs';
 import { requireProject, touchProject } from '../services/projects';
+import { detectRooms } from '../services/rooms';
 
 const P = z.object({ id: Id });
 
@@ -103,6 +105,30 @@ export const floorRoutes: FastifyPluginAsyncZod = async (app) => {
       preHandler: requireUser,
     },
     async (req) => storage.sheetLines((await liveFloor(req.params.id)).imagePath),
+  );
+
+  app.post(
+    '/api/floors/:id/detect-rooms',
+    {
+      schema: {
+        tags: ['floors'],
+        params: P,
+        description:
+          "Suggest room outlines from the drawing: each room name in the PDF's text is flood-filled out to the walls. Nothing is saved; create the zones you keep with PUT /api/zones/:id.",
+        response: { 200: DetectRoomsResult },
+      },
+      preHandler: editor,
+    },
+    async (req) => {
+      const f = await liveFloor(req.params.id);
+      const t0 = performance.now();
+      const res = await detectRooms(db, storage, f);
+      req.log.info(
+        { floorId: f.id, rooms: res.rooms.length, ms: Math.round(performance.now() - t0) },
+        'rooms detected',
+      );
+      return res;
+    },
   );
 
   app.post(
@@ -389,6 +415,9 @@ export const floorRoutes: FastifyPluginAsyncZod = async (app) => {
             widthPx: pg.widthPx,
             heightPx: pg.heightPx,
             previewWidthPx: pg.previewWidthPx!,
+            // where the sheet came from, for reading its text later (room detection)
+            uploadId: staged.id,
+            uploadPage: 1,
             // same drawing at another resolution: keep the real-world scale
             ftPerPx: f.ftPerPx ? (f.ftPerPx * f.widthPx) / pg.widthPx : null,
             renderDpi:

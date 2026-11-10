@@ -216,6 +216,23 @@ export const SnapSettings = z.object({
 export type SnapSettings = z.infer<typeof SnapSettings>;
 const SheetLineRow = z.tuple([z.number(), z.number(), z.number()]);
 export const SheetLinesDto = z.object({ h: z.array(SheetLineRow), v: z.array(SheetLineRow) });
+const SheetPoint = z.tuple([z.number().min(0).max(1), z.number().min(0).max(1)]);
+/** A room outline worked out from the drawing, offered for review before it becomes a zone. */
+export const DetectedRoom = z.object({
+  name: z.string(),
+  /** the room label's position on the sheet */
+  at: SheetPoint,
+  points: z.array(SheetPoint),
+  /** null when the floor has no scale */
+  areaSqFt: z.number().nullable(),
+});
+export type DetectedRoom = z.infer<typeof DetectedRoom>;
+export const DetectRoomsResult = z.object({
+  rooms: z.array(DetectedRoom),
+  /** why nothing (or less than expected) was found, in plain words */
+  note: z.string().nullable(),
+});
+export type DetectRoomsResult = z.infer<typeof DetectRoomsResult>;
 export const Library = z.object({
   categories: z.array(Category),
   types: z.array(DeviceType),

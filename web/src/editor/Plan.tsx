@@ -38,6 +38,7 @@ import { loadSheetLines } from './sheetLines';
 import { UploadDropZone } from './Uploads';
 import { CalibrateDialog, ZoneDialog } from './ZoneDialogs';
 import { patchFloor, saveZone, newZone, setZoneEdit } from './zones';
+import { draftRoomAt, RoomDraftLabels, RoomDraftShapes, toggleDraftRoom } from './RoomDetect';
 import { toast } from '../toast';
 
 const DRAG_THRESHOLD = 5;
@@ -90,6 +91,7 @@ export function Plan() {
   const tool = useEditor((s) => s.tool);
   const selectedZone = useEditor((s) => s.selectedZone);
   const zoneEdit = useEditor((s) => s.zoneEdit);
+  const reviewingRooms = useEditor((s) => !!s.roomDraft && s.roomDraft.floorId === s.floorId);
 
   const vpRef = useRef<HTMLDivElement>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
@@ -672,7 +674,12 @@ export function Plan() {
       if (s.zoneEdit) {
         lastTap.current = { t: performance.now(), x: g.sx, y: g.sy };
         // clicking a corner handle keeps its zone selected, even if the click is just outside it
-        if (!g.vertex) {
+        const draft = s.roomDraft?.floorId === floor!.id ? s.roomDraft : null;
+        if (draft) {
+          // reviewing found rooms: a click ticks or unticks the room under it
+          const r = inSheet(f) ? draftRoomAt(draft, f.x, f.y) : null;
+          if (r) toggleDraftRoom(r.key);
+        } else if (!g.vertex) {
           // Zone Edit mode: select the zone under the click, if any
           const z = inSheet(f) ? zoneAt(zones, floor!.id, f.x, f.y) : null;
           setState({ selection: [], selectedZone: z?.id ?? null });
@@ -758,6 +765,7 @@ export function Plan() {
                 points={z.points.map(([x, y]) => `${x * floor.widthPx},${y * floor.heightPx}`).join(' ')}
               />
             ))}
+            <RoomDraftShapes floor={floor} />
             <CoverageShapes floor={floor} />
             <WirePaths floor={floor} />
             {guides.map((g, i) =>
@@ -816,6 +824,7 @@ export function Plan() {
               </div>
             );
           })}
+          <RoomDraftLabels floor={floor} />
           {floor.riserX != null && floor.riserY != null && (
             <div
               className="riser-pin"
@@ -897,9 +906,11 @@ export function Plan() {
           <div className="place-hint zone-edit-hint" role="status" onPointerDown={(e) => e.stopPropagation()}>
             <span>
               <strong>Zone Edit</strong> ·{' '}
-              {selectedZone
-                ? 'Drag corners to reshape. Double-click the outline to add a corner'
-                : 'Click a zone to edit it'}
+              {reviewingRooms
+                ? 'Click a found room to tick or untick it, then add the ticked ones from the side panel'
+                : selectedZone
+                  ? 'Drag corners to reshape. Double-click the outline to add a corner'
+                  : 'Click a zone to edit it'}
             </span>
             <button
               className="btn btn-sm"

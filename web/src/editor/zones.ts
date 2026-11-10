@@ -23,6 +23,7 @@ export function setZoneEdit(on: boolean) {
       : {
           zoneEdit: false,
           selectedZone: null,
+          roomDraft: null,
           tool: s.tool === 'zone' ? null : s.tool,
         },
   );

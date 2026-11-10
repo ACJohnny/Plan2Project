@@ -4,6 +4,7 @@ import { formatFeet } from '@sixpoint/shared';
 import { changeType, deleteMarkers, editMarkers } from './ops';
 import { ZoneEditor } from './ZoneDialogs';
 import { ZoneList, useZoneNameOptions } from './ZonesPanel';
+import { RoomReview } from './RoomDetect';
 import { useClosets, useSummary } from './zones';
 import { colorOf, getState, setState, tagOf, typeOf, useEditor } from './store';
 
@@ -61,7 +62,9 @@ function MarkerEditor() {
   const markers = useEditor((s) => s.markers);
   const selectedZone = useEditor((s) => (s.selectedZone ? s.zones[s.selectedZone] : null));
   const zoneEdit = useEditor((s) => s.zoneEdit);
+  const reviewing = useEditor((s) => !!s.roomDraft && s.roomDraft.floorId === s.floorId);
   const sel = selection.map((id) => markers[id]).filter(Boolean);
+  if (zoneEdit && reviewing) return <RoomReview />;
   if (!sel.length && selectedZone && zoneEdit)
     return <ZoneEditor key={selectedZone.id + selectedZone.updatedAt} zone={selectedZone} />;
   if (!sel.length && zoneEdit) return <ZoneList />;

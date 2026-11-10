@@ -4,6 +4,7 @@ import { Modal } from '../components/ui';
 import { editMarkers } from './ops';
 import { getState, setState, useEditor } from './store';
 import { deleteZone, saveZone, setZoneEdit, useClosets, useSummary } from './zones';
+import { DetectRoomsButton } from './RoomDetect';
 
 /* ---------- name autocomplete ---------- */
 
@@ -128,6 +129,7 @@ export function ZoneList() {
         >
           + New zone
         </button>
+        <DetectRoomsButton />
         <button className="btn btn-sm" onClick={() => setState({ zonesTable: true })}>
           All zones…
         </button>

@@ -27,6 +27,21 @@ export interface HistoryEntry {
   at: number;
 }
 
+/** Rooms found on a floor's drawing, waiting to be ticked and added as zones. */
+export interface RoomDraft {
+  floorId: string;
+  note: string | null;
+  rooms: {
+    key: number;
+    name: string;
+    points: [number, number][];
+    areaSqFt: number | null;
+    on: boolean;
+    /** name of a zone already covering this room */
+    existing: string | null;
+  }[];
+}
+
 export interface EditorState {
   projectId: string | null;
   project: Project | null;
@@ -44,6 +59,7 @@ export interface EditorState {
   /** admin-managed zone names for autocomplete */
   zoneNames: string[];
   snap: SnapSettings;
+  roomDraft: RoomDraft | null;
   /** the all-zones table dialog is open */
   zonesTable: boolean;
   /** draw right-angle wire paths to the closets */
@@ -102,6 +118,7 @@ export const initialState = (): EditorState => ({
   zoneNames: [],
   snap: DEFAULT_SNAP,
   zonesTable: false,
+  roomDraft: null,
   showWires: pref('spm.showWires', false),
   showCoverage: pref('spm.showCoverage', true),
   floorId: null,
